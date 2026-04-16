@@ -1,0 +1,67 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.so
+*.egg
+*.egg-info/
+dist/
+build/
+.eggs/
+*.log
+
+# Virtual environments
+backend/venv/
+venv/
+env/
+.env
+.venv/
+
+# Node.js
+frontend/node_modules/
+node_modules/
+frontend/dist/
+frontend/.cache/
+
+# Database
+*.db
+*.sqlite3
+*.sqlite
+
+# Logs
+*.log
+*.out.log
+*.err.log
+service_logs/
+backend-dev.log
+backend-dev.err.log
+frontend-dev.log
+frontend-dev.err.log
+mediamtx-dev.log
+mediamtx-dev.err.log
+
+# Models (large binary)
+python_worker/*.pt
+python_worker/*.onnx
+
+# MediaMTX binary
+mediamtx_bin/
+
+# Snapshots & media
+snapshots/
+
+# Secrets / env files
+.env
+.env.*
+!.env.example
+
+# IDE
+.venv
+.idea/
+.vscode/
+*.swp
+
+# OS
+.DS_Store
+Thumbs.db

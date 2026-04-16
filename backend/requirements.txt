@@ -1,0 +1,17 @@
+fastapi>=0.110.0
+uvicorn[standard]
+sqlalchemy[asyncio]
+asyncpg
+alembic
+pydantic-settings
+python-multipart
+websockets
+httpx
+redis[asyncio]
+apscheduler
+openpyxl
+pandas
+aiofiles
+python-dotenv
+passlib
+fastapi-mail

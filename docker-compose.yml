@@ -1,0 +1,136 @@
+services:
+  postgres:
+    image: postgres:15-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-supershop_db}
+      POSTGRES_USER: ${POSTGRES_USER:-supershop}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-supershop123}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-supershop} -d ${POSTGRES_DB:-supershop_db}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - supershop_net
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - supershop_net
+
+  mediamtx:
+    image: bluenviron/mediamtx:latest
+    restart: unless-stopped
+    command: ["/mediamtx.yml"]
+    ports:
+      - "8554:8554"
+      - "8888:8888"
+      - "8889:8889"
+      - "9997:9997"
+    volumes:
+      - ./mediamtx.yml:/mediamtx.yml
+    healthcheck:
+      test: ["CMD-SHELL", "wget --server-response --spider -q http://127.0.0.1:9997/v3/config/get 2>&1 | grep -Eq 'HTTP/[0-9.]+ (200|401)'"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+    networks:
+      - supershop_net
+
+  backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    env_file:
+      - .env
+    environment:
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-supershop}:${POSTGRES_PASSWORD:-supershop123}@postgres:5432/${POSTGRES_DB:-supershop_db}
+      REDIS_URL: redis://redis:6379
+      MEDIAMTX_API_URL: http://mediamtx:9997
+      FRONTEND_URL: ${FRONTEND_URL:-http://localhost:5173}
+      SNAPSHOT_DIR: /app/snapshots
+    ports:
+      - "8001:8001"
+    volumes:
+      - ./snapshots:/app/snapshots
+      - ./service_logs:/app/service_logs
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      mediamtx:
+        condition: service_started
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://127.0.0.1:8001/docs').read()\""]
+      interval: 20s
+      timeout: 8s
+      retries: 5
+    networks:
+      - supershop_net
+
+  python-worker:
+    build:
+      context: .
+      dockerfile: python_worker/Dockerfile
+    env_file:
+      - .env
+      - python_worker/.env
+    environment:
+      FASTAPI_URL: http://backend:8001
+      REDIS_URL: redis://redis:6379
+    volumes:
+      - ./models:/app/python_worker/models
+      - ./snapshots:/app/snapshots
+      - ./service_logs:/app/service_logs
+    depends_on:
+      postgres:
+        condition: service_healthy
+      backend:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      mediamtx:
+        condition: service_started
+    restart: unless-stopped
+    profiles:
+      - worker
+    networks:
+      - supershop_net
+
+  frontend:
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile
+      args:
+        VITE_API_BASE_URL: ${VITE_API_BASE_URL:-http://127.0.0.1:8001/api}
+        VITE_WS_URL: ${VITE_WS_URL:-ws://127.0.0.1:8001/ws/dashboard}
+    ports:
+      - "5173:80"
+    depends_on:
+      backend:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - supershop_net
+
+networks:
+  supershop_net:
+    driver: bridge
+
+volumes:
+  postgres_data:
