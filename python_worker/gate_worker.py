@@ -24,17 +24,18 @@ os.environ.setdefault('OPENCV_VIDEOIO_PRIORITY_MSMF', '0')
 
 import cv2
 import httpx
+import torch
 from ultralytics import YOLO
 
 FASTAPI_URL = os.getenv('FASTAPI_URL', 'http://127.0.0.1:8001').rstrip('/')
 CAMERA_SOURCE = os.getenv('CAMERA_SOURCE', '0')
 CAMERA_ID = os.getenv('CAMERA_ID', 'camera_1')
-MODEL_PATH = os.getenv('YOLO_MODEL', 'yolo26s.pt')
+MODEL_PATH = os.getenv('YOLO_MODEL', 'yolov8n.pt')
 CONF = float(os.getenv('CONFIDENCE', '0.15'))
 TRACKER_CFG = os.getenv('YOLO_TRACKER', 'bytetrack.yaml')
 HEARTBEAT_INTERVAL = int(os.getenv('HEARTBEAT_INTERVAL', '5'))
 AUTO_RESOLVE_SOURCE = str(CAMERA_SOURCE).strip().upper() in {'AUTO', 'BACKEND', 'DEFAULT'}
-MODEL_CANDIDATES = [MODEL_PATH, 'yolo26n.pt', 'yolov8n.pt']
+MODEL_CANDIDATES = [MODEL_PATH, 'yolov8n.pt', 'yolo26n.pt']
 FRAME_FLUSH_COUNT = int(os.getenv('FRAME_FLUSH_COUNT', '3'))
 INFERENCE_IMG_SIZE = int(os.getenv('INFERENCE_IMG_SIZE', '416'))
 PROCESS_EVERY_NTH_FRAME = max(1, int(os.getenv('PROCESS_EVERY_NTH_FRAME', '3')))
@@ -85,6 +86,57 @@ def _resolve_model_path(path_value: str) -> str:
         if path.is_file():
             return str(path)
     return path_value
+
+
+_DEVICE = 'cuda' if torch.cuda.is_available() else 'cpu'
+
+
+class CameraStream:
+    """Helper class to read frames in a separate thread to avoid buffer lag."""
+    def __init__(self, source):
+        self.source = int(source) if str(source).isdigit() else source
+        self.cap = cv2.VideoCapture(self.source, cv2.CAP_FFMPEG)
+        try:
+            self.cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
+        except Exception:
+            pass
+        self.frame = None
+        self.stopped = False
+        self.lock = threading.Lock()
+        self.thread = None
+
+    def start(self):
+        self.thread = threading.Thread(target=self.update, args=(), daemon=True)
+        self.thread.start()
+        return self
+
+    def update(self):
+        while not self.stopped:
+            if not self.cap.isOpened():
+                time.sleep(0.5)
+                continue
+            grabbed, frame = self.cap.read()
+            if not grabbed:
+                time.sleep(0.1)
+                continue
+            with self.lock:
+                self.frame = frame
+
+    def read(self):
+        with self.lock:
+            return self.frame
+
+    def stop(self):
+        self.stopped = True
+        if self.thread:
+            self.thread.join(timeout=1.0)
+        try:
+            self.cap.release()
+        except Exception:
+            pass
+
+    def is_opened(self):
+        return self.cap.isOpened()
 
 
 def _load_model() -> tuple[YOLO, str]:
@@ -349,13 +401,21 @@ def _shutdown(signum, _frame):
 
 
 def main() -> None:
-    global CAMERA_ID
+    global CAMERA_ID, TRACKER_CFG, CONF, INFERENCE_IMG_SIZE, PROCESS_EVERY_NTH_FRAME
     signal.signal(signal.SIGINT, _shutdown)
     signal.signal(signal.SIGTERM, _shutdown)
 
+    _log('INFO', f'Using device: {_DEVICE}')
     model, active_model_path = _load_model()
+    
+    # Optimization: Warm up the model
+    dummy = torch.zeros((1, 3, INFERENCE_IMG_SIZE, INFERENCE_IMG_SIZE)).to(_DEVICE)
+    try:
+        model(dummy)
+    except Exception:
+        pass
+
     consecutive_empty_frames = 0
-    consecutive_frame_failures = 0
     frame_index = 0
 
     is_dynamic = (CAMERA_ID.upper() in {'DYNAMIC', 'AUTO'})
@@ -370,92 +430,72 @@ def main() -> None:
     else:
         _log('INFO', "Dynamic worker started. Waiting for dashboard selection...")
 
-    cap = _open_camera(camera_source) if camera_source else None
-    if cap and cap.isOpened():
-        _log('INFO', f'Camera opened: {camera_source}')
-    elif camera_source:
-        _log('ERROR', f'Camera open failed: {camera_source}')
-        _set_status('error')
+    stream: CameraStream | None = None
+    if camera_source:
+        stream = CameraStream(camera_source).start()
+        _log('INFO', f'Stream thread started for: {camera_source}')
 
     threading.Thread(target=_heartbeat_loop, daemon=True).start()
 
     try:
         while not STOP_EVENT.is_set():
             # Sync dynamic camera target
-            if is_dynamic and time.time() - last_sync_time > 5:
+            if is_dynamic and time.time() - last_sync_time > 3:
                 last_sync_time = time.time()
                 target_cid = _fetch_active_camera_id()
                 if target_cid and target_cid != active_cid:
                     _log('INFO', f"Switching dynamic worker to camera: {target_cid}")
                     active_cid = target_cid
-                    # Reset capture
-                    if cap:
-                        cap.release()
-                    cap = None
+                    if stream:
+                        stream.stop()
+                    stream = None
                     camera_source = None
-                    # Global variable update so heartbeat and posts use the new ID
                     CAMERA_ID = target_cid
 
             if not camera_source:
-                camera_source = _refresh_camera_source(CAMERA_ID, camera_source)
+                camera_source = _refresh_camera_source(CAMERA_ID, None)
                 if not camera_source:
                     _set_status('idle')
-                    time.sleep(2)
-                    continue
-                cap = _open_camera(camera_source)
-                continue
-
-            if not cap or not cap.isOpened():
-                _log('WARN', 'Camera not open, retrying...')
-                time.sleep(1)
-                if cap:
-                    cap.release()
-                camera_source = _refresh_camera_source(CAMERA_ID, camera_source)
-                if not camera_source:
-                    continue
-                cap = _open_camera(camera_source)
-                continue
-
-            for _ in range(max(0, FRAME_FLUSH_COUNT)):
-                cap.grab()
-
-            ok, frame = cap.retrieve()
-            if not ok or frame is None:
-                _log('WARN', 'Frame read failed, retrying...')
-                consecutive_frame_failures += 1
-                _set_status('active')
-                if consecutive_frame_failures >= 5:
-                    _log('WARN', 'Too many frame read failures, reopening camera...')
-                    try:
-                        cap.release()
-                    except Exception:
-                        pass
                     time.sleep(1)
-                    cap = _open_camera(camera_source)
-                    consecutive_frame_failures = 0
-                time.sleep(1)
+                    continue
+                stream = CameraStream(camera_source).start()
                 continue
-            consecutive_frame_failures = 0
 
-            frame_h, frame_w = frame.shape[:2]
+            if not stream or not stream.is_opened():
+                _log('WARN', 'Stream not active, retrying...')
+                time.sleep(1)
+                camera_source = _refresh_camera_source(CAMERA_ID, camera_source)
+                if camera_source:
+                    stream = CameraStream(camera_source).start()
+                continue
+
+            frame = stream.read()
+            if frame is None:
+                time.sleep(0.01)
+                continue
+
             frame_index += 1
             if frame_index % PROCESS_EVERY_NTH_FRAME != 0:
                 continue
+
+            frame_h, frame_w = frame.shape[:2]
             try:
+                # Create a local copy to ensure thread safety during annotation
+                current_frame = frame.copy()
                 results = model.track(
-                    frame,
+                    current_frame,
                     persist=True,
                     conf=CONF,
                     tracker=TRACKER_CFG,
                     imgsz=INFERENCE_IMG_SIZE,
                     verbose=False,
-                    device='cpu'
+                    device=_DEVICE
                 )
-                detections = _parse_boxes(model, results, frame, frame_w, frame_h)
+                detections = _parse_boxes(model, results, current_frame, frame_w, frame_h)
             except Exception as exc:
                 _set_status('error')
                 _log('ERROR', f'YOLO tracking failed: {exc}')
-                time.sleep(1)
+                time.sleep(0.5)
                 continue
 
             detections = _attach_carry_metadata(detections)
@@ -464,41 +504,32 @@ def main() -> None:
             else:
                 consecutive_empty_frames = 0
 
-            if consecutive_empty_frames >= 30 and active_model_path != str(_resolve_model_path('yolov8n.pt')):
+            if consecutive_empty_frames >= 50 and active_model_path != str(_resolve_model_path('yolov8n.pt')):
                 try:
                     fallback_path = _resolve_model_path('yolov8n.pt')
-                    _log('WARN', f'No detections for 30 frames, switching model to: {fallback_path}')
+                    _log('WARN', f'No detections for 50 frames, switching model to: {fallback_path}')
                     model = YOLO(fallback_path)
                     active_model_path = fallback_path
                     consecutive_empty_frames = 0
                 except Exception as exc:
                     _log('ERROR', f'Fallback model switch failed: {exc}')
-            annotated_frame = _annotate_frame(frame, detections)
+
+            annotated_frame = _annotate_frame(current_frame, detections)
             frame_b64 = _encode_frame(annotated_frame)
             payload = _build_payload(detections, frame_b64, frame_w, frame_h)
 
             _log('DETECT', f'{len(detections)} objects found')
-            for det in detections:
-                bbox = det.get('bbox') or {}
-                _log('DETECT', f"track_id={det.get('track_id')} class={det.get('class_name')} conf={det.get('confidence')} bbox=({bbox.get('x1')},{bbox.get('y1')},{bbox.get('x2')},{bbox.get('y2')})")
-
-            if frame_b64:
-                _log('POST', 'sending annotated frame and detections')
             if _post('/api/detection', payload):
-                _log('POST', 'OK ✅')
                 _set_status('active')
-            else:
-                _log('ERROR', 'Failed to post detections')
+            
+            time.sleep(0.005)
 
-            time.sleep(0.02)
     except Exception as exc:
         _set_status('error')
         _log('ERROR', f'Worker crashed: {exc}')
     finally:
-        try:
-            cap.release()
-        except Exception:
-            pass
+        if stream:
+            stream.stop()
         try:
             _post('/api/worker/heartbeat', {'status': 'idle', 'camera_id': CAMERA_ID})
         except Exception:
@@ -509,3 +540,4 @@ def main() -> None:
 
 if __name__ == '__main__':
     main()
+()

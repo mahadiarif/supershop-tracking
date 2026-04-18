@@ -54,6 +54,7 @@ class DetectionBox(BaseModel):
     bbox: dict[str, float] | list[float] | None = None
     frame_width: int | None = None
     frame_height: int | None = None
+    snapshot: str | None = None
     carried_by_track_id: int | None = None
     is_carried: bool = False
     is_carrying: bool = False
@@ -273,6 +274,7 @@ async def receive_detection(payload: DetectionPayload, db: AsyncSession = Depend
                         "bbox": _normalize_bbox(item.bbox),
                         "frame_width": item.frame_width,
                         "frame_height": item.frame_height,
+                        "snapshot": item.snapshot,
                         "carried_by_track_id": item.carried_by_track_id,
                         "is_carried": item.is_carried,
                         "is_carrying": item.is_carrying,
@@ -304,6 +306,7 @@ async def receive_detection(payload: DetectionPayload, db: AsyncSession = Depend
                             "bbox": _normalize_bbox(item.bbox),
                             "frame_width": item.frame_width,
                             "frame_height": item.frame_height,
+                            "snapshot": item.snapshot,
                             "carried_by_track_id": item.carried_by_track_id,
                             "is_carried": item.is_carried,
                             "is_carrying": item.is_carrying,
@@ -337,6 +340,7 @@ async def receive_detection(payload: DetectionPayload, db: AsyncSession = Depend
                             "bbox": _normalize_bbox(item.bbox),
                             "frame_width": item.frame_width,
                             "frame_height": item.frame_height,
+                            "snapshot": item.snapshot,
                             "carried_by_track_id": item.carried_by_track_id,
                             "is_carried": item.is_carried,
                             "is_carrying": item.is_carrying,

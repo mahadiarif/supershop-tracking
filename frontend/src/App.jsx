@@ -35,6 +35,24 @@ function SidebarLink({ to, label, icon: Icon }) {
   );
 }
 
+function MobileNavLink({ to, label, icon: Icon }) {
+  return (
+    <NavLink
+      to={to}
+      end={to === '/'}
+      className={({ isActive }) =>
+        [
+          'flex min-w-0 flex-1 flex-col items-center justify-center gap-1 rounded-lg px-2 py-2 text-[11px] font-semibold transition-all duration-200',
+          isActive ? 'bg-cyan-700/25 text-cyan-200' : 'text-slate-400 hover:bg-slate-800/70 hover:text-slate-100',
+        ].join(' ')
+      }
+    >
+      <Icon className="h-4 w-4" />
+      <span className="truncate">{label}</span>
+    </NavLink>
+  );
+}
+
 function AppShell() {
   return (
     <div className="min-h-screen bg-[#06111d] text-slate-100">
@@ -82,27 +100,27 @@ function AppShell() {
         <div className="flex min-w-0 flex-1 flex-col">
           <header className="flex items-center justify-between border-b border-cyan-500/10 bg-[#07101a]/90 px-4 py-3 backdrop-blur xl:px-6">
             <div className="flex items-center gap-3">
-              <div className="lg:hidden grid h-10 w-10 place-items-center rounded-xl bg-gradient-to-br from-cyan-400 to-sky-600 text-[#06111d]">
+              <div className="grid h-10 w-10 place-items-center rounded-xl bg-gradient-to-br from-cyan-400 to-sky-600 text-[#06111d] lg:hidden">
                 <Video className="h-5 w-5" />
               </div>
               <div>
-                <div className="text-xs font-black uppercase tracking-[0.45em] text-slate-500">Live Camera</div>
-                <div className="text-sm text-slate-300">Real-time retail surveillance dashboard</div>
+                <div className="text-sm font-black tracking-[0.04em] text-slate-100 sm:text-base">Smart Surveillance View</div>
+                <div className="text-[9px] font-semibold uppercase tracking-[0.24em] text-cyan-400/70 lg:hidden">METRONET AI</div>
               </div>
             </div>
 
-            <div className="flex items-center gap-3">
-              <div className="hidden text-xs font-mono text-slate-400 sm:block">14:42:45</div>
-              <div className="flex items-center gap-2 rounded-full border border-cyan-500/20 bg-slate-900/70 px-3 py-1.5">
+            <div className="flex items-center gap-2 sm:gap-3">
+              <div className="hidden text-xs font-mono text-slate-400 md:block">LIVE</div>
+              <div className="flex items-center gap-2 rounded-full border border-cyan-500/20 bg-slate-900/70 px-2.5 py-1.5 sm:px-3">
                 <div className="grid h-7 w-7 place-items-center rounded-full bg-gradient-to-br from-cyan-400 to-violet-500 text-xs font-black text-white">
                   S
                 </div>
-                <span className="text-sm font-semibold text-slate-100">Sentinel Admin</span>
+                <span className="hidden text-sm font-semibold text-slate-100 sm:inline">Sentinel Admin</span>
               </div>
             </div>
           </header>
 
-          <main className="flex-1 overflow-y-auto px-4 py-4 xl:px-6">
+          <main className="flex-1 overflow-y-auto px-4 py-4 pb-24 xl:px-6 xl:pb-6">
             <Routes>
               <Route path="/" element={<Dashboard />} />
               <Route path="/cameras" element={<Cameras />} />
@@ -113,6 +131,14 @@ function AppShell() {
           </main>
         </div>
       </div>
+
+      <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-cyan-500/10 bg-[#07101a]/96 px-3 py-2 backdrop-blur lg:hidden">
+        <div className="flex items-center gap-2">
+          {navItems.map((item) => (
+            <MobileNavLink key={item.to} {...item} />
+          ))}
+        </div>
+      </nav>
     </div>
   );
 }
