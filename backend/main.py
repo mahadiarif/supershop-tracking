@@ -122,6 +122,17 @@ async def websocket_camera(websocket: WebSocket, camera_id: str):
     finally:
         manager.disconnect(room_name, websocket)
 
-@app.get("/")
-async def root():
-    return {"message": "Supershop Tracking API is running."}
+@app.get("/api/health")
+async def health():
+    return {"status": "ok"}
+
+# Frontend static files (SPA)
+# Note: This should be after all API and WS routes
+frontend_dist = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "frontend", "dist")
+if os.path.exists(frontend_dist):
+    app.mount("/", StaticFiles(directory=frontend_dist, html=True), name="frontend")
+else:
+    @app.get("/")
+    async def root():
+        print(f"SEARCHING FOR FRONTEND AT: {frontend_dist}")
+        return {"message": "Supershop Tracking API (Integrated Dashboard - Build not found)", "path_searched": frontend_dist}

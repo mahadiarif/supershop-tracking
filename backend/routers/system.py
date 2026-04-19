@@ -120,7 +120,7 @@ async def get_system_health(db: AsyncSession = Depends(get_db)):
     worker_running = False
     if worker_last_heartbeat is not None:
         age_seconds = (datetime.utcnow() - worker_last_heartbeat).total_seconds()
-        worker_running = age_seconds <= WORKER_IDLE_TIMEOUT and worker_state in {"active", "error"}
+        worker_running = age_seconds <= WORKER_IDLE_TIMEOUT and worker_state in {"active", "idle", "error"}
     worker_status = "online" if worker_running else "offline"
     if worker_running:
         worker_message = "Python worker heartbeat is active."

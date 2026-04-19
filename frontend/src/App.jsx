@@ -1,17 +1,21 @@
 import React from 'react';
 import { BrowserRouter, NavLink, Routes, Route } from 'react-router-dom';
-import { Activity, Camera, FileText, LayoutDashboard, LogOut, Shield, Video } from 'lucide-react';
+import { Activity, Camera, Database, FileText, Grid2X2, LayoutDashboard, LogOut, Shield, Video } from 'lucide-react';
 import Dashboard from './pages/Dashboard';
 import Cameras from './pages/Cameras';
 import Alerts from './pages/Alerts';
 import Reports from './pages/Reports';
 import SystemStatus from './pages/SystemStatus';
+import Datasheet from './pages/Datasheet';
+import Zones from './pages/Zones';
 
 const navItems = [
   { to: '/', label: 'Live Camera', icon: LayoutDashboard },
   { to: '/cameras', label: 'Camera Config', icon: Camera },
   { to: '/alerts', label: 'Alerts', icon: Activity },
   { to: '/reports', label: 'Reports', icon: FileText },
+  { to: '/datasheet', label: 'Data Sheet', icon: Database },
+  { to: '/zones', label: 'Processing Zones', icon: Grid2X2 },
   { to: '/system', label: 'System Status', icon: Shield },
 ];
 
@@ -126,6 +130,8 @@ function AppShell() {
               <Route path="/cameras" element={<Cameras />} />
               <Route path="/alerts" element={<Alerts />} />
               <Route path="/reports" element={<Reports />} />
+              <Route path="/datasheet" element={<Datasheet />} />
+              <Route path="/zones" element={<Zones />} />
               <Route path="/system" element={<SystemStatus />} />
             </Routes>
           </main>

@@ -168,18 +168,6 @@ export default function SystemStatus() {
                                                             type="button"
                                                             onClick={() => toggleService(svc)}
                                                             disabled={isBusy || loading}
-                                                            className={`rounded-md border px-3 py-1.5 text-xs font-bold uppercase tracking-[0.2em] transition ${
-                                                                svc.running
-                                                                    ? 'border-rose-500/30 bg-rose-500/10 text-rose-300 hover:bg-rose-500/20'
-                                                                    : 'border-emerald-500/30 bg-emerald-500/10 text-emerald-300 hover:bg-emerald-500/20'
-                                                            } ${isBusy ? 'cursor-wait opacity-70' : ''}`}
-                                                        >
-                                                            {isBusy ? 'Working...' : svc.running ? 'Stop' : 'Start'}
-                                                        </button>
-                                                        <button
-                                                            type="button"
-                                                            onClick={() => toggleService(svc)}
-                                                            disabled={isBusy || loading}
                                                             className={`relative inline-flex h-7 w-14 items-center rounded-full transition ${svc.running ? 'bg-emerald-500' : 'bg-slate-700'} ${isBusy ? 'opacity-70 cursor-wait' : ''}`}
                                                             aria-label={`${svc.running ? 'Stop' : 'Start'} ${svc.service}`}
                                                         >
@@ -231,4 +219,3 @@ export default function SystemStatus() {
         </div>
     );
 }
-

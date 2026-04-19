@@ -1,4 +1,4 @@
-﻿import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useCamera } from '../hooks/useCamera';
 import {
   Video,
@@ -310,84 +310,138 @@ export default function Cameras() {
       </div>
 
       {isModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm">
-          <div className="w-full max-w-md overflow-hidden rounded-2xl border border-cyan-500/15 bg-[#0b1624] shadow-2xl">
-            <div className="flex items-center justify-between border-b border-cyan-500/15 bg-[#09111b] px-5 py-4">
-              <h2 className="text-lg font-semibold text-slate-100">{editingCameraId ? 'Edit Camera' : 'Add Camera'}</h2>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-md">
+          <div className="w-full max-w-lg overflow-hidden rounded-3xl border border-cyan-500/20 bg-[#0b1624] shadow-[0_0_50px_rgba(0,0,0,0.5)]">
+            <div className="flex items-center justify-between border-b border-cyan-500/10 bg-[#09111b] px-6 py-5">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-cyan-500/10 rounded-lg">
+                  <Video className="h-5 w-5 text-cyan-400" />
+                </div>
+                <div>
+                  <h2 className="text-xl font-black text-white italic uppercase tracking-tight">{editingCameraId ? 'Configure Node' : 'Register New Camera'}</h2>
+                  <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Surveillance Network Node</p>
+                </div>
+              </div>
               <button
                 onClick={() => {
                   setIsModalOpen(false);
                   setEditingCameraId(null);
                   setFormData(emptyForm);
                 }}
-                className="rounded-md p-1 text-slate-500 transition hover:text-slate-300"
+                className="rounded-full p-2 text-slate-500 transition hover:bg-white/5 hover:text-slate-300"
               >
                 <X className="h-5 w-5" />
               </button>
             </div>
-            <form onSubmit={handleSubmitCamera} className="space-y-4 p-5">
-              <div>
-                <label className="mb-1 block text-sm text-slate-300">Name</label>
-                <input
-                  type="text"
-                  value={formData.name}
-                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                  required
-                  className="w-full rounded-lg border border-slate-700 bg-[#09111b] p-2.5 text-slate-100 outline-none focus:border-cyan-500"
-                />
-              </div>
-              <div>
-                <label className="mb-1 block text-sm text-slate-300">RTSP URL</label>
-                <input
-                  type="text"
-                  value={formData.rtsp_url}
-                  onChange={(e) => setFormData({ ...formData, rtsp_url: e.target.value })}
-                  required
-                  className="w-full rounded-lg border border-slate-700 bg-[#09111b] p-2.5 text-slate-100 outline-none focus:border-cyan-500"
-                />
-              </div>
-              <div>
-                <label className="mb-1 block text-sm text-slate-300">MediaMTX Path</label>
-                <input
-                  type="text"
-                  value={formData.mediamtx_path}
-                  onChange={(e) => setFormData({ ...formData, mediamtx_path: e.target.value })}
-                  required
-                  className="w-full rounded-lg border border-slate-700 bg-[#09111b] p-2.5 font-mono text-sm text-slate-100 outline-none focus:border-cyan-500"
-                />
-              </div>
-              <div>
-                <label className="mb-1 block text-sm text-slate-300">Zone</label>
-                <select
-                  value={formData.zone_id}
-                  onChange={(e) => setFormData({ ...formData, zone_id: e.target.value })}
-                  className="w-full rounded-lg border border-slate-700 bg-[#09111b] p-2.5 text-slate-100 outline-none focus:border-cyan-500"
-                >
-                  <option value="">No zone</option>
-                  {zones.map((zone) => (
-                    <option key={zone.id} value={zone.id}>
-                      {zone.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div className="flex gap-3 pt-2">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setIsModalOpen(false);
-                    setEditingCameraId(null);
-                    setFormData(emptyForm);
-                  }}
-                  className="flex-1 rounded-lg border border-slate-700 px-4 py-2.5 text-slate-300 transition hover:bg-[#09111b]"
-                >
-                  Cancel
-                </button>
-                <button type="submit" className="flex-1 rounded-lg bg-cyan-500 px-4 py-2.5 font-semibold text-[#06111d] transition hover:brightness-110">
-                  Save
-                </button>
-              </div>
-            </form>
+            
+            <div className="p-6">
+              {!editingCameraId && (
+                <div className="mb-8">
+                  <label className="mb-3 block text-[10px] font-black uppercase tracking-[0.2em] text-cyan-500/60">Quick Presets</label>
+                  <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                    {[
+                      { id: 'usb', name: 'USB Cam', url: '0', path: 'usb_cam' },
+                      { id: 'tiandy', name: 'Tiandy', url: 'rtsp://admin:admin123@192.168.1.100:554/live/main', path: 'tiandy_hq' },
+                      { id: 'rtsp', name: 'Generic', url: 'rtsp://username:password@ip:port/stream', path: 'camera_main' },
+                      { id: 'demo', name: 'Demo File', url: '/app/demo.mp4', path: 'demo_feed' },
+                    ].map((preset) => (
+                      <button
+                        key={preset.id}
+                        type="button"
+                        onClick={() => setFormData({ ...formData, rtsp_url: preset.url, mediamtx_path: preset.path, name: preset.name })}
+                        className="flex flex-col items-center gap-2 rounded-xl border border-white/5 bg-[#09111b] p-3 text-xs font-bold text-slate-300 transition hover:border-cyan-500/40 hover:bg-cyan-500/5 hover:text-cyan-200"
+                      >
+                        <div className="p-2 bg-slate-800 rounded-lg group-hover:bg-cyan-900/40 transition-colors">
+                          <Plus className="h-3 w-3" />
+                        </div>
+                        {preset.name}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              <form onSubmit={handleSubmitCamera} className="space-y-5">
+                <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
+                  <div className="space-y-1.5">
+                    <label className="block text-[10px] font-black uppercase tracking-widest text-slate-500">Camera Name</label>
+                    <input
+                      type="text"
+                      placeholder="e.g. Front Gate HQ"
+                      value={formData.name}
+                      onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                      required
+                      className="w-full rounded-xl border border-white/5 bg-[#09111b] p-3 text-sm text-slate-100 outline-none transition focus:border-cyan-500/50 focus:ring-1 focus:ring-cyan-500/20"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="block text-[10px] font-black uppercase tracking-widest text-slate-500">Processing Zone</label>
+                    <select
+                      value={formData.zone_id}
+                      onChange={(e) => setFormData({ ...formData, zone_id: e.target.value })}
+                      className="w-full rounded-xl border border-white/5 bg-[#09111b] p-3 text-sm text-slate-100 outline-none transition focus:border-cyan-500/50"
+                    >
+                      <option value="">Default Area</option>
+                      {zones.map((zone) => (
+                        <option key={zone.id} value={zone.id}>
+                          {zone.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="block text-[10px] font-black uppercase tracking-widest text-slate-500">RTSP/Source URL</label>
+                  <div className="relative">
+                    <input
+                      type="text"
+                      placeholder="rtsp://... or 0 for USB"
+                      value={formData.rtsp_url}
+                      onChange={(e) => setFormData({ ...formData, rtsp_url: e.target.value })}
+                      required
+                      className="w-full rounded-xl border border-white/5 bg-[#09111b] p-3 pl-4 text-sm font-mono text-cyan-200 outline-none transition focus:border-cyan-500/50"
+                    />
+                    <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none">
+                      <ExternalLink className="h-3.5 w-3.5 text-slate-600" />
+                    </div>
+                  </div>
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="block text-[10px] font-black uppercase tracking-widest text-slate-500">MediaMTX Resource Path</label>
+                  <div className="flex items-center gap-2">
+                    <span className="text-slate-600 font-mono text-xs">/</span>
+                    <input
+                      type="text"
+                      placeholder="camera_main"
+                      value={formData.mediamtx_path}
+                      onChange={(e) => setFormData({ ...formData, mediamtx_path: e.target.value })}
+                      required
+                      className="w-full rounded-xl border border-white/5 bg-[#09111b] p-3 text-sm font-mono text-slate-200 outline-none transition focus:border-cyan-500/50"
+                    />
+                  </div>
+                  <p className="text-[9px] font-bold text-slate-600 uppercase tracking-widest pl-4">Virtual route for RTC/HLS streaming</p>
+                </div>
+
+                <div className="flex gap-3 pt-6">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsModalOpen(false);
+                      setEditingCameraId(null);
+                      setFormData(emptyForm);
+                    }}
+                    className="flex-1 rounded-xl border border-white/5 bg-slate-800/50 px-6 py-3.5 text-sm font-bold text-slate-400 transition hover:bg-slate-800 hover:text-slate-200"
+                  >
+                    Discard
+                  </button>
+                  <button type="submit" className="flex-[2] rounded-xl bg-gradient-to-r from-cyan-600 to-blue-600 px-6 py-3.5 text-sm font-black uppercase tracking-widest text-white shadow-xl shadow-cyan-900/20 transition hover:brightness-110 active:scale-[0.98]">
+                    {editingCameraId ? 'Apply Config' : 'Initialize Node'}
+                  </button>
+                </div>
+              </form>
+            </div>
           </div>
         </div>
       )}

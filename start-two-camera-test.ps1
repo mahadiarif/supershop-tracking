@@ -37,7 +37,7 @@ foreach ($item in $workers) {
 `$env:FASTAPI_URL='http://127.0.0.1:8001'
 `$env:CAMERA_SOURCE='AUTO'
 `$env:CAMERA_ID='$cameraId'
-`$env:YOLO_MODEL='yolo26s.pt'
+`$env:YOLO_MODEL='yolo26n.pt'
 `$env:CONFIDENCE='$($item.Confidence)'
 `$env:YOLO_TRACKER='bytetrack.yaml'
 `$env:HEARTBEAT_INTERVAL='5'
@@ -45,7 +45,7 @@ foreach ($item in $workers) {
 `$env:INFERENCE_IMG_SIZE='$($item.InferenceImgSize)'
 `$env:PROCESS_EVERY_NTH_FRAME='$($item.ProcessEveryNthFrame)'
 `$env:JPEG_QUALITY='$($item.JpegQuality)'
-`$env:ALLOWED_CLASSES='person'
+`$env:ALLOWED_CLASSES='ALL'
 & '$pythonExe' '$workerScript'
 "@
 

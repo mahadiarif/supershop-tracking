@@ -3,7 +3,7 @@ import api, { getDashboardStats } from '../api/client';
 import LiveFeed from '../components/LiveFeed';
 import { useWebSocket } from '../hooks/useWebSocket';
 import { useCamera } from '../hooks/useCamera';
-import { Activity, Users, Shield, LayoutGrid, VideoOff } from 'lucide-react';
+import { Activity, Users, Shield, LayoutGrid, VideoOff, X } from 'lucide-react';
 
 function MetricCard({ value, label, icon: Icon, tone = 'cyan' }) {
   const toneClasses = {
@@ -71,6 +71,8 @@ export default function Dashboard() {
   const [clock, setClock] = useState(() => new Date());
   const liveDetectionsRef = useRef({});
   const activityKeysRef = useRef(new Set());
+  const [persistentGallery, setPersistentGallery] = useState([]);
+  const [selectedSnapshot, setSelectedSnapshot] = useState(null);
 
   const wsUrl = import.meta.env.VITE_WS_URL || 'ws://127.0.0.1:8001/ws/dashboard';
   const wsData = useWebSocket(wsUrl);
@@ -217,6 +219,56 @@ export default function Dashboard() {
       }
 
       if (detections.length > 0) {
+        setPersistentGallery((prev) => {
+          let next = [...prev];
+          detections.forEach((det) => {
+            if (det.snapshot) {
+              const now = new Date();
+              const existingIndex = next.findIndex(item => item.track_id === det.track_id);
+              
+              // Spatial deduplication: Check if a similar object was added in the last 10 seconds
+              const similarRecentIndex = next.findIndex(item => {
+                if (item.track_id === det.track_id) return false;
+                if (item.class_name !== det.class_name) return false;
+                const timeDiff = (now - new Date(item.timestamp)) / 1000;
+                if (timeDiff > 10) return false;
+
+                // Center point calculation
+                const c1 = { 
+                  x: ((det.bbox[0] + det.bbox[2]) / 2), 
+                  y: ((det.bbox[1] + det.bbox[3]) / 2) 
+                };
+                const c2 = { 
+                  x: ((item.bbox[0] + item.bbox[2]) / 2), 
+                  y: ((item.bbox[1] + item.bbox[3]) / 2) 
+                };
+                
+                // Distance check (normalized to frame size - roughly 20% distance threshold)
+                const dist = Math.sqrt(Math.pow(c1.x - c2.x, 2) + Math.pow(c1.y - c2.y, 2));
+                return dist < 250; // Threshold for proximity
+              });
+
+              const newItem = {
+                ...det,
+                timestamp: now.toISOString(),
+                camera_name: wsData.data.camera_key || 'Camera'
+              };
+              
+              if (existingIndex !== -1) {
+                // Update existing exact ID
+                next[existingIndex] = newItem;
+              } else if (similarRecentIndex !== -1) {
+                // Assume it's the same person with a new ID
+                next[similarRecentIndex] = { ...newItem, track_id: next[similarRecentIndex].track_id };
+              } else {
+                // Truly new detection
+                next.unshift(newItem);
+              }
+            }
+          });
+          return next.slice(0, 24); // Keep last 24 unique tracks
+        });
+
         const topDetection = detections[0];
         const activityKey = `${cameraId}-${topDetection.track_id}-${Math.floor(Date.now() / 4000)}`;
         if (!activityKeysRef.current.has(activityKey)) {
@@ -436,26 +488,33 @@ export default function Dashboard() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-3 gap-2 p-3 sm:grid-cols-5">
-                {snapshotStrip.length === 0 ? (
+              <div className="grid grid-cols-3 gap-2 p-3 sm:grid-cols-6 lg:grid-cols-8">
+                {persistentGallery.length === 0 ? (
                   <div className="col-span-full rounded-lg border border-dashed border-slate-700 px-4 py-6 text-center text-sm text-slate-500">
-                    No snapshots yet.
+                    No persistent snapshots yet. Waiting for detections...
                   </div>
                 ) : (
-                  snapshotStrip.map((det) => (
-                    <div key={`${det.track_id}-${det.class_name}`} className="overflow-hidden rounded-lg border border-slate-800 bg-[#09111b]">
-                      <div className="aspect-[1.45] bg-slate-950">
+                  persistentGallery.map((det, idx) => (
+                    <div 
+                      key={`${det.track_id}-${idx}`} 
+                      onClick={() => setSelectedSnapshot(det)}
+                      className="group cursor-pointer overflow-hidden rounded-lg border border-slate-800 bg-[#09111b] transition-all hover:border-cyan-500/50 hover:shadow-[0_0_15px_rgba(34,211,238,0.2)]"
+                    >
+                      <div className="relative aspect-square bg-slate-950">
                         {det.snapshot ? (
                           <img
                             src={`data:image/jpeg;base64,${det.snapshot}`}
                             alt={det.class_name}
-                            className="h-full w-full object-cover"
+                            className="h-full w-full object-cover transition-transform group-hover:scale-110"
                           />
                         ) : (
                           <div className="flex h-full items-center justify-center text-[10px] text-slate-700">NO IMG</div>
                         )}
+                        <div className="absolute top-0 right-0 p-1">
+                           <div className="px-1 bg-black/60 rounded text-[8px] font-mono text-cyan-400">#{det.track_id}</div>
+                        </div>
                       </div>
-                      <div className="border-t border-slate-800 px-2 py-1.5 text-[10px] font-semibold text-slate-300">
+                      <div className="border-t border-slate-800 px-2 py-1 text-[9px] font-bold text-slate-400 group-hover:text-cyan-300">
                         <div className="truncate">{String(det.class_name || 'object').toUpperCase()}</div>
                       </div>
                     </div>
@@ -526,6 +585,61 @@ export default function Dashboard() {
           </div>
         </div>
       </Panel>
+
+      {/* Snapshot Full View Modal */}
+      {selectedSnapshot && (
+        <div 
+          className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-md p-4 animate-in fade-in duration-200"
+          onClick={() => setSelectedSnapshot(null)}
+        >
+          <div 
+            className="relative w-full max-w-2xl bg-[#0b1624] rounded-3xl border border-cyan-500/30 overflow-hidden shadow-[0_0_100px_rgba(34,211,238,0.2)]"
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between p-5 border-b border-cyan-500/10 bg-[#09111b]">
+              <div>
+                <h3 className="text-xl font-black text-white italic uppercase tracking-tight">Object Insight</h3>
+                <p className="text-[10px] font-bold text-cyan-400/60 uppercase tracking-widest">Temporal Signature Artifact</p>
+              </div>
+              <button 
+                onClick={() => setSelectedSnapshot(null)}
+                className="p-2 hover:bg-white/5 rounded-full text-slate-500 hover:text-white transition"
+              >
+                <X className="h-6 w-6" />
+              </button>
+            </div>
+            
+            <div className="p-6 flex flex-col items-center">
+              <div className="relative w-full aspect-square max-w-md bg-black rounded-2xl overflow-hidden border border-white/5 shadow-2xl">
+                <img 
+                  src={`data:image/jpeg;base64,${selectedSnapshot.snapshot}`} 
+                  alt="Full view" 
+                  className="w-full h-full object-contain"
+                />
+              </div>
+              
+              <div className="w-full mt-8 grid grid-cols-2 gap-4">
+                <div className="p-4 bg-slate-900/50 rounded-2xl border border-white/5">
+                  <div className="text-[10px] uppercase font-black tracking-widest text-slate-500 mb-1">Class Type</div>
+                  <div className="text-lg font-bold text-cyan-300 capitalize">{selectedSnapshot.class_name}</div>
+                </div>
+                <div className="p-4 bg-slate-900/50 rounded-2xl border border-white/5">
+                  <div className="text-[10px] uppercase font-black tracking-widest text-slate-500 mb-1">Track Identity</div>
+                  <div className="text-lg font-bold text-white font-mono">#{selectedSnapshot.track_id}</div>
+                </div>
+                <div className="p-4 bg-slate-900/50 rounded-2xl border border-white/5">
+                  <div className="text-[10px] uppercase font-black tracking-widest text-slate-500 mb-1">Confidence</div>
+                  <div className="text-lg font-bold text-white">{((selectedSnapshot.confidence || 0) * 100).toFixed(1)}%</div>
+                </div>
+                <div className="p-4 bg-slate-900/50 rounded-2xl border border-white/5">
+                  <div className="text-[10px] uppercase font-black tracking-widest text-slate-500 mb-1">Timestamp</div>
+                  <div className="text-sm font-bold text-slate-400">{new Date(selectedSnapshot.timestamp).toLocaleTimeString()}</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
