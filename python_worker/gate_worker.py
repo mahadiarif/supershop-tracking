@@ -219,7 +219,7 @@ def _post(path: str, payload: dict[str, Any]) -> bool:
 def _heartbeat_loop() -> None:
     while not STOP_EVENT.is_set():
         status = _get_status()
-        _post('/api/worker/heartbeat', {'status': status, 'camera_id': CAMERA_ID})
+        _post('/api/events/worker/heartbeat', {'status': status, 'camera_id': CAMERA_ID})
         _log('POST', f'heartbeat={status}')
         STOP_EVENT.wait(HEARTBEAT_INTERVAL)
 
@@ -519,7 +519,7 @@ def main() -> None:
             payload = _build_payload(detections, frame_b64, frame_w, frame_h)
 
             _log('DETECT', f'{len(detections)} objects found')
-            if _post('/api/detection', payload):
+            if _post('/api/events/detection', payload):
                 _set_status('active')
             
             time.sleep(0.005)
