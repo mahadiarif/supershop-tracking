@@ -13,6 +13,7 @@ from backend.config import settings
 from backend.services.summary_service import summary_service
 from backend.services.email_service import email_service
 from backend.services.report_service import report_service
+from backend.vps_inference.inference_service import get_model
 
 scheduler = AsyncIOScheduler()
 
@@ -57,7 +58,11 @@ async def lifespan(app: FastAPI):
     scheduler.add_job(_send_monthly_report, "cron", day=1, hour=8, minute=0)
     scheduler.add_job(_sync_camera_statuses, "interval", seconds=30)
     scheduler.start()
-    print("Application and Scheduler Started")
+    
+    # Pre-load YOLO model
+    loop = asyncio.get_event_loop()
+    await loop.run_in_executor(None, get_model)
+    print("Application, Scheduler Started, and YOLO model loaded")
     yield
     # Shutdown
     scheduler.shutdown()

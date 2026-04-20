@@ -29,6 +29,12 @@ try:
 except Exception:  # pragma: no cover - redis is optional at runtime
     redis = None
 
+import asyncio
+from concurrent.futures import ThreadPoolExecutor
+from backend.vps_inference.inference_service import run_inference
+
+_executor = ThreadPoolExecutor(max_workers=2)
+
 router = APIRouter()
 
 WORKER_HEARTBEAT_KEY = "worker:last_heartbeat"
@@ -74,6 +80,13 @@ class DetectionPayload(BaseModel):
 class WorkerHeartbeatPayload(BaseModel):
     status: str = "active"
     camera_id: str | None = None
+
+
+class FramePayload(BaseModel):
+    camera_id: str
+    frame: str  # base64 JPEG
+    frame_width: int = 640
+    frame_height: int = 480
 
 
 def _parse_date_range(start_date: Optional[str], end_date: Optional[str]) -> tuple[dt.datetime | None, dt.datetime | None]:
@@ -235,8 +248,7 @@ async def create_event(event: EventCreate, db: AsyncSession = Depends(get_db)):
     return new_event
 
 
-@router.post("/detection")
-async def receive_detection(payload: DetectionPayload, db: AsyncSession = Depends(get_db)):
+async def process_detection(payload: DetectionPayload, db: AsyncSession):
     camera = await _resolve_camera(db, payload.camera_id)
     if camera.web_enabled is False:
         await _store_worker_status(payload.worker_status or "idle")
@@ -245,10 +257,14 @@ async def receive_detection(payload: DetectionPayload, db: AsyncSession = Depend
     detection_items = payload.detections or []
     saved_snapshot = _save_annotated_frame(payload.frame, str(camera.id))
 
-    batch_track_id = detection_items[0].track_id if detection_items and detection_items[0].track_id is not None else 0
+    batch_track_id = (
+        detection_items[0].track_id if detection_items and detection_items[0].track_id is not None else 0
+    )
     batch_class_name = detection_items[0].class_name if detection_items else "detection_batch"
     batch_confidence = detection_items[0].confidence if detection_items else 0.0
-    first_bbox = _normalize_bbox(detection_items[0].bbox) if detection_items and detection_items[0].bbox is not None else None
+    first_bbox = (
+        _normalize_bbox(detection_items[0].bbox) if detection_items and detection_items[0].bbox is not None else None
+    )
 
     if detection_items:
         detection_event = TrackingEvent(
@@ -288,77 +304,72 @@ async def receive_detection(payload: DetectionPayload, db: AsyncSession = Depend
         db.add(detection_event)
         await db.commit()
 
-        await manager.broadcast(
-            "dashboard",
-            {
-                "type": "detection",
-                "data": {
-                    "camera_id": str(camera.id),
-                    "camera_key": payload.camera_id,
-                    "frame": payload.frame,
-                    "frame_width": detection_items[0].frame_width if detection_items[0].frame_width is not None else None,
-                    "frame_height": detection_items[0].frame_height if detection_items[0].frame_height is not None else None,
-                    "detections": [
-                        {
-                            "track_id": item.track_id,
-                            "class_name": item.class_name,
-                            "confidence": item.confidence,
-                            "bbox": _normalize_bbox(item.bbox),
-                            "frame_width": item.frame_width,
-                            "frame_height": item.frame_height,
-                            "snapshot": item.snapshot,
-                            "carried_by_track_id": item.carried_by_track_id,
-                            "is_carried": item.is_carried,
-                            "is_carrying": item.is_carrying,
-                            "carrying_objects": item.carrying_objects,
-                            "carry_summary": item.carry_summary,
-                        }
-                        for item in detection_items
-                    ],
-                    "total_persons": payload.total_persons,
-                    "total_objects": payload.total_objects,
-                    "worker_status": payload.worker_status,
-                    "snapshot_path": saved_snapshot,
-                },
-            },
-        )
-        await manager.broadcast(
-            f"camera_{camera.id}",
-            {
-                "type": "detection",
-                "data": {
-                    "camera_id": str(camera.id),
-                    "camera_key": payload.camera_id,
-                    "frame": payload.frame,
-                    "frame_width": detection_items[0].frame_width if detection_items[0].frame_width is not None else None,
-                    "frame_height": detection_items[0].frame_height if detection_items[0].frame_height is not None else None,
-                    "detections": [
-                        {
-                            "track_id": item.track_id,
-                            "class_name": item.class_name,
-                            "confidence": item.confidence,
-                            "bbox": _normalize_bbox(item.bbox),
-                            "frame_width": item.frame_width,
-                            "frame_height": item.frame_height,
-                            "snapshot": item.snapshot,
-                            "carried_by_track_id": item.carried_by_track_id,
-                            "is_carried": item.is_carried,
-                            "is_carrying": item.is_carrying,
-                            "carrying_objects": item.carrying_objects,
-                            "carry_summary": item.carry_summary,
-                        }
-                        for item in detection_items
-                    ],
-                    "total_persons": payload.total_persons,
-                    "total_objects": payload.total_objects,
-                    "worker_status": payload.worker_status,
-                    "snapshot_path": saved_snapshot,
-                },
-            },
-        )
+        dashboard_data = {
+            "camera_id": str(camera.id),
+            "camera_key": payload.camera_id,
+            "frame": payload.frame,
+            "frame_width": detection_items[0].frame_width if detection_items and detection_items[0].frame_width is not None else None,
+            "frame_height": detection_items[0].frame_height if detection_items and detection_items[0].frame_height is not None else None,
+            "detections": [
+                {
+                    "track_id": item.track_id,
+                    "class_name": item.class_name,
+                    "confidence": item.confidence,
+                    "bbox": _normalize_bbox(item.bbox),
+                    "frame_width": item.frame_width,
+                    "frame_height": item.frame_height,
+                    "snapshot": item.snapshot,
+                    "carried_by_track_id": item.carried_by_track_id,
+                    "is_carried": item.is_carried,
+                    "is_carrying": item.is_carrying,
+                    "carrying_objects": item.carrying_objects,
+                    "carry_summary": item.carry_summary,
+                }
+                for item in detection_items
+            ],
+            "total_persons": payload.total_persons,
+            "total_objects": payload.total_objects,
+            "worker_status": payload.worker_status,
+            "snapshot_path": saved_snapshot,
+        }
+
+        await manager.broadcast("dashboard", {"type": "detection", "data": dashboard_data})
+        await manager.broadcast(f"camera_{camera.id}", {"type": "detection", "data": dashboard_data})
 
     await _store_worker_status(payload.worker_status or "active")
     return {"ok": True, "saved": bool(detection_items), "count": len(detection_items)}
+
+
+@router.post("/detection")
+async def receive_detection(payload: DetectionPayload, db: AsyncSession = Depends(get_db)):
+    return await process_detection(payload, db)
+
+
+@router.post("/worker/frame")
+async def receive_frame(payload: FramePayload, db: AsyncSession = Depends(get_db)):
+    """
+    Receive raw frame from laptop frame_sender.py
+    Run YOLO inference on VPS
+    Forward result to process_detection logic
+    """
+    try:
+        loop = asyncio.get_event_loop()
+        result = await loop.run_in_executor(
+            _executor,
+            run_inference,
+            payload.camera_id,
+            payload.frame,
+            payload.frame_width,
+            payload.frame_height,
+        )
+
+        detection_payload = DetectionPayload(**result)
+        db_result = await process_detection(detection_payload, db)
+
+        return {"success": True, "detections": len(result.get("detections", [])), "db": db_result}
+    except Exception as e:
+        print(f"Error in receive_frame: {e}")
+        return {"success": False, "error": str(e)}
 
 
 @router.post("/worker/heartbeat")

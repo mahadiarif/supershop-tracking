@@ -1,5 +1,5 @@
-﻿# python_worker/main.py
-from gate_worker import main
+# python_worker/main.py
+from frame_sender import main
 
 
 if __name__ == '__main__':

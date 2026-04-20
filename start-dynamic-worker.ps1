@@ -14,14 +14,6 @@ $outLog = Join-Path $logDir "dynamic-worker.out.log"
 $errLog = Join-Path $logDir "dynamic-worker.err.log"
 
 $command = @"
-`$env:FASTAPI_URL='http://127.0.0.1:8001'
-`$env:CAMERA_ID='DYNAMIC'
-`$env:CAMERA_SOURCE='AUTO'
-`$env:YOLO_MODEL='yolo26n.pt'
-`$env:CONFIDENCE='0.35'
-`$env:YOLO_TRACKER='bytetrack.yaml'
-`$env:PROCESS_EVERY_NTH_FRAME='2'
-`$env:ALLOWED_CLASSES='ALL'
 & '$pythonExe' '$workerScript'
 "@
 

@@ -8,6 +8,7 @@ import threading
 import time
 from pathlib import Path
 from typing import Any
+import queue
 
 from dotenv import load_dotenv
 
@@ -149,6 +150,17 @@ def _load_model() -> tuple[YOLO, str]:
         try:
             _log('INFO', f'Loading YOLO model: {resolved}')
             model = YOLO(resolved)
+            if _DEVICE == 'cuda':
+                _log('INFO', 'Optimizing model for CUDA (FP16)...')
+                model.to(_DEVICE)
+                model.half()
+            else:
+                _log('INFO', 'Optimizing model for CPU...')
+                # Fusing layers can give a slight speed boost
+                try:
+                    model.fuse()
+                except Exception:
+                    pass
             _log('INFO', f'Model loaded successfully: {resolved}')
             return model, resolved
         except Exception as exc:
@@ -219,9 +231,50 @@ def _post(path: str, payload: dict[str, Any]) -> bool:
 def _heartbeat_loop() -> None:
     while not STOP_EVENT.is_set():
         status = _get_status()
-        _post('/api/events/worker/heartbeat', {'status': status, 'camera_id': CAMERA_ID})
+        _post('/api/worker/heartbeat', {'status': status, 'camera_id': CAMERA_ID})
         _log('POST', f'heartbeat={status}')
         STOP_EVENT.wait(HEARTBEAT_INTERVAL)
+
+
+class PayloadWorker:
+    """Helper class to send detection data in a background thread to avoid blocking the tracking loop."""
+    def __init__(self, path: str):
+        self.path = path
+        self.queue = queue.Queue(maxsize=1)  # Only keep the latest frame to avoid backlog lag
+        self.thread = threading.Thread(target=self._run, daemon=True)
+        self.thread.start()
+
+    def submit(self, detections: list[dict[str, Any]], frame, frame_w: int, frame_h: int):
+        # If queue is full, remove the old one (keep newest)
+        if self.queue.full():
+            try:
+                self.queue.get_nowait()
+            except queue.Empty:
+                pass
+        self.queue.put((detections, frame, frame_w, frame_h))
+
+    def _run(self):
+        while not STOP_EVENT.is_set():
+            try:
+                # Use a small timeout to check STOP_EVENT regularly
+                item = self.queue.get(timeout=1.0)
+                detections, frame, frame_w, frame_h = item
+                
+                # Encode in background
+                frame_b64 = _encode_frame(frame)
+                payload = _build_payload(detections, frame_b64, frame_w, frame_h)
+                
+                _post(self.path, payload)
+                self.queue.task_done()
+            except queue.Empty:
+                continue
+            except Exception as e:
+                _log('ERROR', f"Payload worker error: {e}")
+
+    def stop(self):
+        # We rely on STOP_EVENT for thread termination, but joining is good
+        if self.thread.is_alive():
+            self.thread.join(timeout=1.0)
 
 
 def _open_camera(source: str):
@@ -436,6 +489,7 @@ def main() -> None:
         _log('INFO', f'Stream thread started for: {camera_source}')
 
     threading.Thread(target=_heartbeat_loop, daemon=True).start()
+    payload_worker = PayloadWorker('/api/detection')
 
     try:
         while not STOP_EVENT.is_set():
@@ -515,14 +569,25 @@ def main() -> None:
                     _log('ERROR', f'Fallback model switch failed: {exc}')
 
             annotated_frame = _annotate_frame(current_frame, detections)
-            frame_b64 = _encode_frame(annotated_frame)
-            payload = _build_payload(detections, frame_b64, frame_w, frame_h)
-
-            _log('DETECT', f'{len(detections)} objects found')
-            if _post('/api/events/detection', payload):
-                _set_status('active')
             
-            time.sleep(0.005)
+            # More descriptive log for "accurate report"
+            persons = [d for d in detections if d['class_name'] == 'person']
+            carrying = [p for p in persons if p.get('is_carrying')]
+            
+            summary = f'{len(detections)} objects trackable'
+            if persons:
+                summary += f' ( {len(persons)} persons'
+                if carrying:
+                    summary += f', {len(carrying)} carrying items'
+                summary += ' )'
+            
+            _log('DETECT', summary)
+            
+            # Offload encoding and posting to background
+            payload_worker.submit(detections, annotated_frame, frame_w, frame_h)
+            _set_status('active')
+            
+            time.sleep(0.001)
 
     except Exception as exc:
         _set_status('error')
@@ -535,9 +600,9 @@ def main() -> None:
         except Exception:
             pass
         CLIENT.close()
+        payload_worker.stop()
         STOP_EVENT.set()
 
 
 if __name__ == '__main__':
     main()
-()
