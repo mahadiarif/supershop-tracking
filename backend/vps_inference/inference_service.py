@@ -15,6 +15,7 @@ YOLO_MODEL = os.getenv('YOLO_MODEL', 'yolov8n.pt')
 YOLO_TRACKER = os.getenv('YOLO_TRACKER', 'bytetrack.yaml')
 CONFIDENCE = float(os.getenv('CONFIDENCE', '0.35'))
 INFERENCE_IMG_SIZE = int(os.getenv('INFERENCE_IMG_SIZE', '320'))
+YOLO_DEVICE = os.getenv('YOLO_DEVICE', 'cpu')
 
 def get_model() -> YOLO:
     global _model
@@ -66,6 +67,7 @@ def run_inference(camera_id: str, frame_b64: str,
             tracker=YOLO_TRACKER,
             imgsz=INFERENCE_IMG_SIZE,
             verbose=False,
+            device=YOLO_DEVICE,
         )
     
     detections = _parse_detections(model, results, frame,
