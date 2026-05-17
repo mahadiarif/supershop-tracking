@@ -363,7 +363,9 @@ export default function Dashboard() {
     }
   };
 
-  const feedUrl = selectedCamera ? `http://localhost:8889/${selectedCamera.mediamtx_path}/` : '';
+  const _apiBase = import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8001/api';
+  const _serverHost = _apiBase.replace(/\/api$/, '').replace(/:8001$/, '');
+  const feedUrl = selectedCamera ? `${_serverHost}:8889/${selectedCamera.mediamtx_path}/` : '';
   const uniqueTrackCount = new Set(selectedDetections.map((item) => item.track_id).filter((value) => value !== undefined && value !== null)).size;
   const heartbeatLabel = useMemo(() => {
     if (!workerLastBeat) return 'No heartbeat';
