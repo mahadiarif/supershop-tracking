@@ -8,7 +8,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.config import settings
 from backend.database import get_db
+from backend.models.alert import Alert
 from backend.models.camera import Camera, CameraStatus
+from backend.models.tracking_event import TrackingEvent
 from backend.schemas.camera import CameraCreate, CameraOut, CameraUpdate
 
 router = APIRouter()
@@ -151,6 +153,12 @@ async def delete_camera(camera_id: str, db: AsyncSession = Depends(get_db)):
         raise HTTPException(status_code=404, detail="Camera not found")
 
     path_name = camera.mediamtx_path
+    camera_uuid = camera.id
+
+    from sqlalchemy import delete as sa_delete
+    await db.execute(sa_delete(Alert).where(Alert.camera_id == camera_uuid))
+    await db.execute(sa_delete(TrackingEvent).where(TrackingEvent.camera_id == camera_uuid))
+
     await db.delete(camera)
     await db.commit()
     if path_name:
