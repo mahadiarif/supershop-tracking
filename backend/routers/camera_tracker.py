@@ -124,7 +124,7 @@ async def stop_tracking(camera_id: str):
     return {"ok": True, "message": "Tracking stopped", "camera_id": camera_id}
 
 
-@router.get("/cameras/track/status")
+@router.get("/tracker/status")
 async def tracking_status():
     return {
         "trackers": [
