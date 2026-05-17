@@ -1,4 +1,6 @@
 paths:
+  tiandy_hq:
+    source: rtsp://admin:admin123@116.193.222.180:554/live/main
   camera1:
     source: rtsp://admin:mnbl09612@172.17.15.220:554/Streaming/Channels/101
   camera2:
