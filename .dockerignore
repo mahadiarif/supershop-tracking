@@ -23,7 +23,6 @@ mediamtx_bin
 
 uploads
 models
-*.pt
 *.onnx
 .env
 .env.*
