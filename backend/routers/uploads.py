@@ -61,13 +61,16 @@ def _extract_frame_b64(frame) -> str:
 async def _stream_loop(video_path: str, camera_id: str):
     cap = cv2.VideoCapture(video_path)
     if not cap.isOpened():
+        print(f"[upload] Cannot open video: {video_path}")
         return
 
     width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
     height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
     frame_delay = 1.0 / STREAM_FPS
     frame_idx = 0
-    loop = asyncio.get_event_loop()
+    loop = asyncio.get_running_loop()
+
+    print(f"[upload] Stream started — camera={camera_id} size={width}x{height} fps={STREAM_FPS} skip={UPLOAD_FRAME_SKIP}")
 
     try:
         while True:
@@ -78,21 +81,26 @@ async def _stream_loop(video_path: str, camera_id: str):
                 continue
 
             if frame_idx % UPLOAD_FRAME_SKIP == 0:
-                frame_b64 = await loop.run_in_executor(_executor, _extract_frame_b64, frame)
-                result = await loop.run_in_executor(
-                    _executor, run_inference, camera_id, frame_b64, width, height
-                )
-                async with AsyncSessionLocal() as db:
-                    try:
+                try:
+                    frame_b64 = await loop.run_in_executor(_executor, _extract_frame_b64, frame)
+                    result = await loop.run_in_executor(
+                        _executor, run_inference, camera_id, frame_b64, width, height
+                    )
+                    async with AsyncSessionLocal() as db:
                         payload = DetectionPayload(**result)
                         await process_detection(payload, db)
-                    except Exception as exc:
-                        print(f"Stream save error: {exc}")
+                except asyncio.CancelledError:
+                    raise
+                except Exception as exc:
+                    print(f"[upload] Frame error (frame={frame_idx}): {type(exc).__name__}: {exc}")
+
                 await asyncio.sleep(frame_delay)
 
             frame_idx += 1
     except asyncio.CancelledError:
-        pass
+        print(f"[upload] Stream stopped — camera={camera_id}")
+    except Exception as exc:
+        print(f"[upload] Stream crashed — camera={camera_id}: {type(exc).__name__}: {exc}")
     finally:
         cap.release()
         _active_streams.pop(camera_id, None)
