@@ -1,6 +1,6 @@
 import React from 'react';
 import { BrowserRouter, NavLink, Routes, Route } from 'react-router-dom';
-import { Activity, Camera, Database, FileText, Grid2X2, LayoutDashboard, LogOut, Shield, Upload, Video } from 'lucide-react';
+import { Activity, Camera, Database, FileText, Grid2X2, LayoutDashboard, LogOut, Shield, Upload, Video, Sparkles } from 'lucide-react';
 import Dashboard from './pages/Dashboard';
 import Cameras from './pages/Cameras';
 import Alerts from './pages/Alerts';
@@ -9,6 +9,7 @@ import SystemStatus from './pages/SystemStatus';
 import Datasheet from './pages/Datasheet';
 import Zones from './pages/Zones';
 import VideoUpload from './pages/VideoUpload';
+import Services from './pages/Services';
 
 const navItems = [
   { to: '/', label: 'Live Camera', icon: LayoutDashboard },
@@ -19,6 +20,7 @@ const navItems = [
   { to: '/zones', label: 'Processing Zones', icon: Grid2X2 },
   { to: '/system', label: 'System Status', icon: Shield },
   { to: '/upload', label: 'Video Upload', icon: Upload },
+  { to: '/services', label: 'Our Services', icon: Sparkles },
 ];
 
 function SidebarLink({ to, label, icon: Icon }) {
@@ -136,6 +138,7 @@ function AppShell() {
               <Route path="/zones" element={<Zones />} />
               <Route path="/system" element={<SystemStatus />} />
               <Route path="/upload" element={<VideoUpload />} />
+              <Route path="/services" element={<Services />} />
             </Routes>
           </main>
         </div>
