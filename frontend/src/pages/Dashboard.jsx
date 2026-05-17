@@ -238,7 +238,7 @@ export default function Dashboard() {
                 return dist < 250;
               });
 
-              const newItem = { ...det, timestamp: now.toISOString(), camera_name: wsData.data.camera_key || 'Camera' };
+              const newItem = { ...det, timestamp: now.toISOString(), camera_id: cameraId, camera_name: wsData.data.camera_key || 'Camera' };
 
               if (existingIndex !== -1) {
                 next[existingIndex] = newItem;
@@ -404,6 +404,15 @@ export default function Dashboard() {
   const snapshotStrip = selectedDetections.slice(0, 5);
   const [mobileTab, setMobileTab] = React.useState('objects');
 
+  const filteredGallery = useMemo(
+    () => selectedCamera ? persistentGallery.filter((item) => item.camera_id === selectedCamera.id) : [],
+    [persistentGallery, selectedCamera]
+  );
+  const filteredActivity = useMemo(
+    () => selectedCamera ? activityFeed.filter((item) => !item.camera_id || item.camera_id === selectedCamera.id) : activityFeed,
+    [activityFeed, selectedCamera]
+  );
+
   return (
     <div className="space-y-4 text-slate-100">
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
@@ -479,12 +488,12 @@ export default function Dashboard() {
               </div>
 
               <div className="grid grid-cols-4 gap-2 p-3 sm:grid-cols-6 lg:grid-cols-8 xl:grid-cols-6">
-                {persistentGallery.length === 0 ? (
+                {filteredGallery.length === 0 ? (
                   <div className="col-span-full rounded-lg border border-dashed border-slate-700 px-4 py-6 text-center text-sm text-slate-500">
-                    No persistent snapshots yet. Waiting for detections...
+                    No snapshots yet for this camera...
                   </div>
                 ) : (
-                  persistentGallery.map((det, idx) => (
+                  filteredGallery.map((det, idx) => (
                     <div 
                       key={`${det.track_id}-${idx}`} 
                       onClick={() => setSelectedSnapshot(det)}
@@ -582,10 +591,10 @@ export default function Dashboard() {
                 <span className="text-[10px] uppercase tracking-[0.18em] text-slate-500">Latest 8</span>
               </div>
               <div className="space-y-2">
-                {activityFeed.length === 0 ? (
+                {filteredActivity.length === 0 ? (
                   <div className="text-sm text-slate-500">Waiting for events...</div>
                 ) : (
-                  activityFeed.slice(0, 6).map((item) => (
+                  filteredActivity.slice(0, 6).map((item) => (
                     <div key={item.id} className="rounded-lg border border-slate-800 bg-[#09111b] px-3 py-2.5">
                       <div className="text-sm font-semibold text-slate-100">{item.title}</div>
                       <div className="mt-1 text-[11px] text-slate-500">{new Date(item.created_at).toLocaleTimeString()}</div>
