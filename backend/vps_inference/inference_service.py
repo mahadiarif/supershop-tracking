@@ -6,27 +6,51 @@ import base64
 import os
 from pathlib import Path
 
+try:
+    import torch
+    _CPU_THREADS = int(os.getenv('TORCH_NUM_THREADS', str(os.cpu_count() or 4)))
+    torch.set_num_threads(_CPU_THREADS)
+except Exception:
+    pass
+
+cv2.setNumThreads(2)
+
 _model = None
 _model_lock = threading.Lock()
 _tracker_state = {}  # persist tracking across frames per camera
 
-# Adjust path to find model in backend or root
 YOLO_MODEL = os.getenv('YOLO_MODEL', 'yolov8n.pt')
 YOLO_TRACKER = os.getenv('YOLO_TRACKER', 'bytetrack.yaml')
 CONFIDENCE = float(os.getenv('CONFIDENCE', '0.35'))
-INFERENCE_IMG_SIZE = int(os.getenv('INFERENCE_IMG_SIZE', '320'))
+INFERENCE_IMG_SIZE = int(os.getenv('INFERENCE_IMG_SIZE', '256'))
 YOLO_DEVICE = os.getenv('YOLO_DEVICE', 'cpu')
+USE_ONNX = os.getenv('USE_ONNX', '0') == '1'
+
+
+def _export_onnx(pt_path: str) -> str:
+    onnx_path = pt_path.replace('.pt', '.onnx')
+    if not Path(onnx_path).exists():
+        print(f"Exporting ONNX model to {onnx_path}…")
+        m = YOLO(pt_path)
+        m.export(format='onnx', imgsz=INFERENCE_IMG_SIZE, simplify=True, opset=12)
+        print("ONNX export done.")
+    return onnx_path
+
 
 def get_model() -> YOLO:
     global _model
     if _model is None:
         with _model_lock:
             if _model is None:
-                _model = YOLO(YOLO_MODEL)
-                try:
-                    _model.fuse()
-                except Exception:
-                    pass
+                if USE_ONNX and YOLO_MODEL.endswith('.pt'):
+                    onnx_path = _export_onnx(YOLO_MODEL)
+                    _model = YOLO(onnx_path, task='detect')
+                else:
+                    _model = YOLO(YOLO_MODEL)
+                    try:
+                        _model.fuse()
+                    except Exception:
+                        pass
     return _model
 
 CARRIED_CLASSES = {
