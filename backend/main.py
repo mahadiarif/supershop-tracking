@@ -7,7 +7,7 @@ import asyncio
 import datetime
 
 from backend.database import engine, Base, AsyncSessionLocal, ensure_camera_web_enabled_column
-from backend.routers import events, alerts, cameras, zones, dashboard, reports, system
+from backend.routers import events, alerts, cameras, zones, dashboard, reports, system, uploads
 from backend.websocket.manager import manager
 from backend.config import settings
 from backend.services.summary_service import summary_service
@@ -93,6 +93,7 @@ app.include_router(zones.router, prefix="/api", tags=["Zones"])
 app.include_router(dashboard.router, prefix="/api", tags=["Dashboard"])
 app.include_router(reports.router, prefix="/api", tags=["Reports"])
 app.include_router(system.router, prefix="/api/system", tags=["System"])
+app.include_router(uploads.router, prefix="/api", tags=["Uploads"])
 
 # WebSocket endpoint for dashboard
 @app.websocket("/ws/dashboard")

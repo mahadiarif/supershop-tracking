@@ -10,6 +10,10 @@ export const getDashboardStats = () => api.get('/dashboard/stats');
 export const getDashboardLive = () => api.get('/dashboard/live');
 export const getCameras = () => api.get('/cameras');
 export const getAlerts = () => api.get('/alerts/stats');
-//... other api methods
+export const uploadVideo = (formData, onProgress) =>
+  api.post('/upload-video', formData, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+    onUploadProgress: onProgress,
+  });
 
 export default api;
