@@ -118,7 +118,9 @@ export default function Cameras() {
       alert('MediaMTX path missing');
       return;
     }
-    window.open(`http://localhost:8889/${camera.mediamtx_path}/`, '_blank', 'noopener,noreferrer');
+    const apiBase = import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8001/api';
+    const serverHost = apiBase.replace(/\/api$/, '').replace(/:\d+$/, '');
+    window.open(`${serverHost}:8889/${camera.mediamtx_path}/`, '_blank', 'noopener,noreferrer');
   };
 
   const cameraList = cameras || [];
