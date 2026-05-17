@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { getCameras, uploadVideo } from '../api/client';
+import api, { getCameras, uploadVideo } from '../api/client';
 
 const ALLOWED = ['video/mp4', 'video/avi', 'video/quicktime', 'video/x-matroska', 'video/webm'];
 
@@ -10,6 +10,8 @@ export default function VideoUpload() {
   const [file, setFile] = useState(null);
   const [progress, setProgress] = useState(0);
   const [status, setStatus] = useState('idle'); // idle | uploading | started | error
+  const [activeCameraId, setActiveCameraId] = useState(null);
+  const [activeStreams, setActiveStreams] = useState([]);
   const [error, setError] = useState('');
   const fileRef = useRef();
   const navigate = useNavigate();
@@ -21,6 +23,16 @@ export default function VideoUpload() {
         setCameras(list);
       })
       .catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    const fetchStatus = () =>
+      api.get('/upload-video/status')
+        .then((r) => setActiveStreams(r.data?.active_streams ?? []))
+        .catch(() => {});
+    fetchStatus();
+    const interval = setInterval(fetchStatus, 3000);
+    return () => clearInterval(interval);
   }, []);
 
   function handleFile(e) {
@@ -48,9 +60,10 @@ export default function VideoUpload() {
     setError('');
 
     try {
-      await uploadVideo(fd, (evt) => {
+      const res = await uploadVideo(fd, (evt) => {
         if (evt.total) setProgress(Math.round((evt.loaded / evt.total) * 100));
       });
+      setActiveCameraId(res.data?.camera_id);
       setStatus('started');
       setTimeout(() => navigate('/'), 2000);
     } catch (err) {
@@ -159,6 +172,28 @@ export default function VideoUpload() {
           {status === 'uploading' ? 'Uploading…' : status === 'started' ? 'Processing on Dashboard…' : 'Upload & Stream to Dashboard'}
         </button>
       </form>
+
+      {/* Active streams control */}
+      {activeStreams.filter(s => s.running).length > 0 && (
+        <div className="rounded-xl border border-amber-500/20 bg-amber-500/5 p-4 space-y-2">
+          <p className="text-xs font-bold uppercase tracking-widest text-amber-300">Active Streams</p>
+          {activeStreams.filter(s => s.running).map((s) => (
+            <div key={s.camera_id} className="flex items-center justify-between gap-3">
+              <span className="font-mono text-xs text-slate-300 truncate">{s.camera_id}</span>
+              <button
+                onClick={async () => {
+                  const fd = new FormData();
+                  fd.append('camera_id', s.camera_id);
+                  await api.post('/upload-video/stop', fd);
+                }}
+                className="shrink-0 rounded-lg border border-rose-500/30 bg-rose-500/10 px-3 py-1 text-xs font-bold text-rose-300 hover:bg-rose-500/20 transition"
+              >
+                Stop
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
 
       <div className="rounded-xl border border-slate-700/50 bg-slate-900/30 p-4 text-xs text-slate-400 space-y-1">
         <p className="font-bold text-slate-300">How it works:</p>
