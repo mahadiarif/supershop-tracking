@@ -8,13 +8,15 @@ import {
     CheckCircle,
     XCircle,
     Cpu,
-    Power
+    Power,
+    RefreshCw,
 } from 'lucide-react';
 
 export default function SystemStatus() {
     const [healthData, setHealthData] = useState(null);
     const [loading, setLoading] = useState(true);
     const [togglingKey, setTogglingKey] = useState(null);
+    const [lastChecked, setLastChecked] = useState(null);
 
     const checkHealth = async () => {
         setLoading(true);
@@ -38,11 +40,14 @@ export default function SystemStatus() {
             });
         } finally {
             setLoading(false);
+            setLastChecked(new Date());
         }
     };
 
     useEffect(() => {
         checkHealth();
+        const interval = setInterval(checkHealth, 30000);
+        return () => clearInterval(interval);
     }, []);
 
     const toggleService = async (svc) => {
@@ -93,14 +98,18 @@ export default function SystemStatus() {
             <div className="flex justify-between items-center bg-[#0b1624] p-4 rounded-xl shadow-sm border border-cyan-500/15">
                 <div>
                     <h1 className="text-2xl font-bold text-slate-100">System Status</h1>
-                    <p className="text-sm text-slate-500">Monitor the local tracking stack: database, cache, stream server, worker, and backend.</p>
+                    <p className="text-sm text-slate-500">
+                        Auto-refreshes every 30s
+                        {lastChecked && <span className="ml-2 text-slate-600">· Last: {lastChecked.toLocaleTimeString()}</span>}
+                    </p>
                 </div>
                 <button
                     onClick={checkHealth}
-                    className="bg-blue-600 text-white px-4 py-2 rounded-lg shadow-sm hover:bg-blue-700 transition disabled:opacity-60"
+                    className="inline-flex items-center gap-2 rounded-lg border border-cyan-500/30 bg-cyan-500/10 px-4 py-2 text-sm font-semibold text-cyan-300 hover:bg-cyan-500/20 transition disabled:opacity-60"
                     disabled={loading || !!togglingKey}
                 >
-                    {loading ? 'Checking...' : 'Refresh Status'}
+                    <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
+                    {loading ? 'Checking...' : 'Refresh Now'}
                 </button>
             </div>
 
@@ -210,9 +219,6 @@ export default function SystemStatus() {
                             </div>
                         )}
 
-                        <div className="rounded-xl border border-cyan-500/15 bg-[#09111b] p-4 text-sm text-slate-400">
-                            Local memory cache mode is enabled, so the app can run fully on this PC without Docker. Redis can still be added later if you want extra cache performance.
-                        </div>
                     </div>
                 )}
             </div>
