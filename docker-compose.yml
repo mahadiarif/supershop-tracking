@@ -32,7 +32,7 @@ services:
       - supershop_net
 
   mediamtx:
-    image: bluenviron/mediamtx:latest
+    image: bluenviron/mediamtx:1.9.1
     restart: unless-stopped
     command: ["/mediamtx.yml"]
     ports:
