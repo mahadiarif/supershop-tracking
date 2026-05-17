@@ -1,3 +1,5 @@
+import os
+import re
 from typing import List
 from uuid import UUID
 
@@ -40,6 +42,30 @@ def _camera_id_filter(camera_id: str):
         return Camera.id == UUID(camera_id)
     except ValueError:
         raise HTTPException(status_code=400, detail="Invalid camera ID")
+
+
+def _update_mediamtx_yml(path_name: str, rtsp_url: str):
+    yml_path = "/app/mediamtx.yml"
+    if not os.path.exists(yml_path):
+        yml_path = "mediamtx.yml"
+    if not os.path.exists(yml_path):
+        return
+    try:
+        text = open(yml_path).read()
+        block = f"  {path_name}:\n    source: {rtsp_url}\n"
+        if path_name in text:
+            # update existing
+            text = re.sub(
+                rf"  {re.escape(path_name)}:\n    source: .*\n",
+                block,
+                text,
+            )
+        else:
+            text = text.replace("paths:\n", f"paths:\n{block}", 1)
+        open(yml_path, "w").write(text)
+        print(f"[cameras] mediamtx.yml updated: {path_name}")
+    except Exception as exc:
+        print(f"[cameras] mediamtx.yml update failed: {exc}")
 
 
 async def _mediamtx_add_path(path_name: str, rtsp_url: str) -> bool:
@@ -113,6 +139,7 @@ async def create_camera(camera: CameraCreate, db: AsyncSession = Depends(get_db)
     await db.refresh(new_camera)
     if new_camera.mediamtx_path and new_camera.rtsp_url:
         await _mediamtx_add_path(new_camera.mediamtx_path, new_camera.rtsp_url)
+        _update_mediamtx_yml(new_camera.mediamtx_path, new_camera.rtsp_url)
     return new_camera
 
 
@@ -142,6 +169,7 @@ async def update_camera(camera_id: str, camera_update: CameraUpdate, db: AsyncSe
     await db.refresh(camera)
     if camera.mediamtx_path and camera.rtsp_url:
         await _mediamtx_add_path(camera.mediamtx_path, camera.rtsp_url)
+        _update_mediamtx_yml(camera.mediamtx_path, camera.rtsp_url)
     return camera
 
 

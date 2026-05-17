@@ -83,6 +83,19 @@ async def _track_loop(camera_id: str, mediamtx_path: str):
         _running.pop(camera_id, None)
 
 
+async def auto_start_all(db: AsyncSession):
+    """Called on startup — auto-start tracking for all cameras with RTSP URL."""
+    result = await db.execute(select(Camera))
+    all_cameras = result.scalars().all()
+    started = 0
+    for cam in all_cameras:
+        if cam.rtsp_url and cam.mediamtx_path and cam.mediamtx_path != "demo_feed":
+            task = asyncio.create_task(_track_loop(str(cam.id), cam.mediamtx_path))
+            _running[str(cam.id)] = task
+            started += 1
+    print(f"[tracker] Auto-started {started} camera tracker(s)")
+
+
 @router.post("/cameras/{camera_id}/track/start")
 async def start_tracking(camera_id: str, db: AsyncSession = Depends(get_db)):
     from uuid import UUID

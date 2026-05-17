@@ -64,6 +64,11 @@ async def lifespan(app: FastAPI):
     loop = asyncio.get_event_loop()
     await loop.run_in_executor(None, get_model)
     print("Application, Scheduler Started, and YOLO model loaded")
+
+    # Auto-start tracking for all real cameras
+    async with AsyncSessionLocal() as db:
+        await camera_tracker.auto_start_all(db)
+
     yield
     # Shutdown
     scheduler.shutdown()
