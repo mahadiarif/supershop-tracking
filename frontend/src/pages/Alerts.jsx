@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import api from '../api/client';
 import { AlertTriangle, RefreshCw, CheckCircle2, Filter, Image, ClipboardList } from 'lucide-react';
+import { getCameras } from '../api/client';
 
 const pageSize = 10;
 
@@ -18,6 +19,16 @@ export default function Alerts() {
     const [activeAlert, setActiveAlert] = useState(null);
     const [reviewer, setReviewer] = useState('admin');
     const [page, setPage] = useState(0);
+    const [cameraMap, setCameraMap] = useState({});
+
+    useEffect(() => {
+        getCameras().then((r) => {
+            const list = r.data?.cameras ?? r.data ?? [];
+            const map = {};
+            list.forEach((c) => { map[c.id] = c.name; });
+            setCameraMap(map);
+        }).catch(() => {});
+    }, []);
 
     const fetchAlerts = async () => {
         setLoading(true);
@@ -176,7 +187,7 @@ export default function Alerts() {
                                                 </span>
                                             </div>
                                             <div className="mt-2 text-sm text-slate-100 font-semibold">
-                                                Camera: {alert.camera_id}
+                                                Camera: {cameraMap[alert.camera_id] || alert.camera_id}
                                             </div>
                                             <div className="text-xs text-slate-500 mt-1">
                                                 {new Date(alert.created_at).toLocaleString()}
@@ -203,6 +214,10 @@ export default function Alerts() {
 
                             {activeAlert ? (
                                 <div className="space-y-3 text-sm">
+                                    <div className="rounded-lg bg-[#0b1624] p-3 border border-cyan-500/15">
+                                        <div className="text-xs text-slate-500">Camera</div>
+                                        <div className="font-semibold text-slate-100">{cameraMap[activeAlert.camera_id] || activeAlert.camera_id}</div>
+                                    </div>
                                     <div className="rounded-lg bg-[#0b1624] p-3 border border-cyan-500/15">
                                         <div className="text-xs text-slate-500">Type</div>
                                         <div className="font-semibold text-slate-100">{String(activeAlert.alert_type).replace('_', ' ')}</div>
