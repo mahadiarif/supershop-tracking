@@ -1,7 +1,8 @@
 """
 VPS-side RTSP frame puller.
-Pulls frames directly from MediaMTX RTSP output for a camera,
-runs YOLO inference, and broadcasts to dashboard — no external python worker needed.
+Pulls frames directly from camera RTSP URL (not via MediaMTX relay),
+runs YOLO inference, and broadcasts to dashboard.
+MediaMTX still serves WebRTC/HLS to the browser independently.
 """
 from __future__ import annotations
 
@@ -51,8 +52,7 @@ def _grab_latest_and_infer(cap: cv2.VideoCapture, camera_id: str, width: int, he
     return run_inference(camera_id, frame_b64, width, height)
 
 
-async def _track_loop(camera_id: str, mediamtx_path: str):
-    rtsp_url = f"{MEDIAMTX_RTSP}/{mediamtx_path}"
+async def _track_loop(camera_id: str, rtsp_url: str):
     frame_delay = 1.0 / STREAM_FPS
     loop = asyncio.get_running_loop()
     reconnect_delay = 2.0
@@ -61,7 +61,7 @@ async def _track_loop(camera_id: str, mediamtx_path: str):
     width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH)) or 640
     height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT)) or 480
 
-    print(f"[tracker] Started — camera={camera_id} path={mediamtx_path} {width}x{height}")
+    print(f"[tracker] Started — camera={camera_id} url={rtsp_url} {width}x{height}")
 
     try:
         while True:
@@ -105,8 +105,8 @@ async def auto_start_all(db: AsyncSession):
     all_cameras = result.scalars().all()
     started = 0
     for cam in all_cameras:
-        if cam.rtsp_url and cam.mediamtx_path and cam.mediamtx_path != "demo_feed":
-            task = asyncio.create_task(_track_loop(str(cam.id), cam.mediamtx_path))
+        if cam.rtsp_url and cam.mediamtx_path != "demo_feed":
+            task = asyncio.create_task(_track_loop(str(cam.id), cam.rtsp_url))
             _running[str(cam.id)] = task
             started += 1
     print(f"[tracker] Auto-started {started} camera tracker(s)")
@@ -119,14 +119,14 @@ async def start_tracking(camera_id: str, db: AsyncSession = Depends(get_db)):
     camera = result.scalar_one_or_none()
     if not camera:
         raise HTTPException(status_code=404, detail="Camera not found")
-    if not camera.mediamtx_path:
-        raise HTTPException(status_code=400, detail="Camera has no MediaMTX path")
+    if not camera.rtsp_url:
+        raise HTTPException(status_code=400, detail="Camera has no RTSP URL")
 
     existing = _running.get(camera_id)
     if existing and not existing.done():
         return {"ok": True, "message": "Already tracking", "camera_id": camera_id}
 
-    task = asyncio.create_task(_track_loop(camera_id, camera.mediamtx_path))
+    task = asyncio.create_task(_track_loop(camera_id, camera.rtsp_url))
     _running[camera_id] = task
     return {"ok": True, "message": "Tracking started", "camera_id": camera_id}
 
