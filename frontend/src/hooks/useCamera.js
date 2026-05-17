@@ -19,6 +19,8 @@ export function useCamera() {
 
     useEffect(() => {
         fetchCameras();
+        const interval = setInterval(fetchCameras, 30000);
+        return () => clearInterval(interval);
     }, [fetchCameras]);
 
     return { cameras, error, refresh: fetchCameras };

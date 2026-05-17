@@ -1,7 +1,7 @@
 import os
+import signal
 import time
 import threading
-import signal
 import base64
 import queue
 from pathlib import Path
@@ -47,13 +47,18 @@ class CameraStream(threading.Thread):
         self.stopped = False
 
     def run(self):
+        consecutive_failures = 0
         while not self.stopped:
             ret, frame = self.cap.read()
             if not ret:
-                log("ERROR", "Failed to read from camera")
-                self.stopped = True
-                break
-            
+                consecutive_failures += 1
+                if consecutive_failures >= 10:
+                    log("ERROR", "10 consecutive frame read failures — stream stopping")
+                    self.stopped = True
+                    break
+                time.sleep(0.1)
+                continue
+            consecutive_failures = 0
             with self.lock:
                 self.frame = frame
 
@@ -173,26 +178,27 @@ def main():
     threading.Thread(target=heartbeat_loop, daemon=True).start()
     
     frame_index = 0
-    MAX_RECONNECT = 10
     reconnect_count = 0
-    
+
     log("INFO", "Starting frame capture loop...")
-    
+
     try:
         while not STOP_EVENT.is_set():
             if not stream.is_opened() or stream.stopped:
                 reconnect_count += 1
-                if reconnect_count > MAX_RECONNECT:
-                    log("ERROR", "Max reconnects reached, exiting")
-                    break
-                
-                log("WARN", f"Camera lost, reconnecting {reconnect_count}/{MAX_RECONNECT}")
+                delay = min(5 * reconnect_count, 60)
+                log("WARN", f"Camera lost, reconnect #{reconnect_count} (wait {delay}s)")
                 stream.stop()
-                time.sleep(5)
+                for _ in range(delay):
+                    if STOP_EVENT.is_set():
+                        break
+                    time.sleep(1)
+                if STOP_EVENT.is_set():
+                    break
                 stream = CameraStream(source)
                 stream.start()
                 continue
-            
+
             reconnect_count = 0
             frame = stream.read()
             if frame is None:
