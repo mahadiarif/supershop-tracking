@@ -60,39 +60,33 @@ async def _stream_video_to_dashboard(video_path: str, camera_id: str) -> dict:
     if not cap.isOpened():
         return {"error": "Cannot open video"}
 
-    total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
     width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
     height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
     frame_delay = 1.0 / STREAM_FPS
 
     frame_idx = 0
-    processed = 0
-    saved = 0
-
     loop = asyncio.get_event_loop()
 
     try:
-        while True:
+        while True:  # loop forever
             ret, frame = cap.read()
             if not ret:
-                break
+                # end of video — rewind and loop
+                cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
+                frame_idx = 0
+                continue
 
             if frame_idx % UPLOAD_FRAME_SKIP == 0:
                 frame_b64 = await loop.run_in_executor(_executor, _extract_frame_b64, frame)
-
                 result = await loop.run_in_executor(
                     _executor, run_inference, camera_id, frame_b64, width, height
                 )
-
                 async with AsyncSessionLocal() as db:
                     try:
                         payload = DetectionPayload(**result)
                         await process_detection(payload, db)
-                        saved += 1
                     except Exception as exc:
                         print(f"Stream save error: {exc}")
-
-                processed += 1
                 await asyncio.sleep(frame_delay)
 
             frame_idx += 1
@@ -102,13 +96,6 @@ async def _stream_video_to_dashboard(video_path: str, camera_id: str) -> dict:
             os.unlink(video_path)
         except OSError:
             pass
-
-    return {
-        "frames_total": total_frames,
-        "frames_processed": processed,
-        "frames_saved": saved,
-        "resolution": f"{width}x{height}",
-    }
 
 
 @router.post("/upload-video")
