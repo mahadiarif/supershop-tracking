@@ -62,6 +62,7 @@ export default function Dashboard() {
     active_track_ids: [],
   });
   const [selectedCameraId, setSelectedCameraId] = useState('');
+  const userPickedCamera = useRef(false);
   const [liveDetectionsByCamera, setLiveDetectionsByCamera] = useState({});
   const [liveFrameSizesByCamera, setLiveFrameSizesByCamera] = useState({});
   const [liveFramesByCamera, setLiveFramesByCamera] = useState({});
@@ -274,14 +275,14 @@ export default function Dashboard() {
         });
       }
 
-      setSelectedCameraId((prev) => {
-        if (!prev) return cameraId;
-        const currentTracks = liveDetectionsRef.current[prev] || [];
-        if (currentTracks.length === 0 && detections.length > 0) {
-          return cameraId;
-        }
-        return prev;
-      });
+      if (!userPickedCamera.current) {
+        setSelectedCameraId((prev) => {
+          if (!prev) return cameraId;
+          const currentTracks = liveDetectionsRef.current[prev] || [];
+          if (currentTracks.length === 0 && detections.length > 0) return cameraId;
+          return prev;
+        });
+      }
     }
 
     if (wsData.type === 'worker_status') {
@@ -429,7 +430,7 @@ export default function Dashboard() {
             </span>
             <select
               value={selectedCameraId}
-              onChange={(event) => setSelectedCameraId(event.target.value)}
+              onChange={(event) => { userPickedCamera.current = true; setSelectedCameraId(event.target.value); }}
               className="w-full max-w-[200px] rounded-md border border-cyan-500/20 bg-[#0a1320] px-3 py-1.5 text-xs text-slate-200 outline-none sm:w-auto"
             >
               {enabledCameras.map((camera) => (
