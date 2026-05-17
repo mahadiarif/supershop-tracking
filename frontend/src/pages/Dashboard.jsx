@@ -225,65 +225,53 @@ export default function Dashboard() {
             if (det.snapshot) {
               const now = new Date();
               const existingIndex = next.findIndex(item => item.track_id === det.track_id);
-              
-              // Spatial deduplication: Check if a similar object was added in the last 10 seconds
+
               const similarRecentIndex = next.findIndex(item => {
                 if (item.track_id === det.track_id) return false;
                 if (item.class_name !== det.class_name) return false;
                 const timeDiff = (now - new Date(item.timestamp)) / 1000;
                 if (timeDiff > 10) return false;
-
-                // Center point calculation
-                const c1 = { 
-                  x: ((det.bbox[0] + det.bbox[2]) / 2), 
-                  y: ((det.bbox[1] + det.bbox[3]) / 2) 
-                };
-                const c2 = { 
-                  x: ((item.bbox[0] + item.bbox[2]) / 2), 
-                  y: ((item.bbox[1] + item.bbox[3]) / 2) 
-                };
-                
-                // Distance check (normalized to frame size - roughly 20% distance threshold)
+                const c1 = { x: ((det.bbox[0] + det.bbox[2]) / 2), y: ((det.bbox[1] + det.bbox[3]) / 2) };
+                const c2 = { x: ((item.bbox[0] + item.bbox[2]) / 2), y: ((item.bbox[1] + item.bbox[3]) / 2) };
                 const dist = Math.sqrt(Math.pow(c1.x - c2.x, 2) + Math.pow(c1.y - c2.y, 2));
-                return dist < 250; // Threshold for proximity
+                return dist < 250;
               });
 
-              const newItem = {
-                ...det,
-                timestamp: now.toISOString(),
-                camera_name: wsData.data.camera_key || 'Camera'
-              };
-              
+              const newItem = { ...det, timestamp: now.toISOString(), camera_name: wsData.data.camera_key || 'Camera' };
+
               if (existingIndex !== -1) {
-                // Update existing exact ID
                 next[existingIndex] = newItem;
               } else if (similarRecentIndex !== -1) {
-                // Assume it's the same person with a new ID
                 next[similarRecentIndex] = { ...newItem, track_id: next[similarRecentIndex].track_id };
               } else {
-                // Truly new detection
                 next.unshift(newItem);
               }
             }
           });
-          return next.slice(0, 24); // Keep last 24 unique tracks
+          return next.slice(0, 24);
         });
 
-        const topDetection = detections[0];
-        const activityKey = `${cameraId}-${topDetection.track_id}-${Math.floor(Date.now() / 4000)}`;
-        if (!activityKeysRef.current.has(activityKey)) {
-          activityKeysRef.current.add(activityKey);
-          setActivityFeed((prev) => [
-            {
-              id: activityKey,
-              title: `${topDetection.class_name || 'object'} detected`.toUpperCase(),
-              camera_id: cameraId,
-              created_at: new Date().toISOString(),
-              severity: 'info',
-            },
-            ...prev,
-          ].slice(0, 8));
-        }
+        // Log every unique class in activity feed, not just first detection
+        const seenClasses = new Set();
+        detections.forEach((det) => {
+          const cls = det.class_name || 'object';
+          if (seenClasses.has(cls)) return;
+          seenClasses.add(cls);
+          const activityKey = `${cameraId}-${det.track_id}-${cls}-${Math.floor(Date.now() / 4000)}`;
+          if (!activityKeysRef.current.has(activityKey)) {
+            activityKeysRef.current.add(activityKey);
+            setActivityFeed((prev) => [
+              {
+                id: activityKey,
+                title: `${cls} detected`.toUpperCase(),
+                camera_id: cameraId,
+                created_at: new Date().toISOString(),
+                severity: 'info',
+              },
+              ...prev,
+            ].slice(0, 8));
+          }
+        });
       }
 
       setSelectedCameraId((prev) => {
