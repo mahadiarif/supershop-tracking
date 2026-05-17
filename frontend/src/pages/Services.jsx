@@ -117,16 +117,25 @@ export default function Services() {
             <span className="text-cyan-400">Analytics Solutions</span>
           </h1>
           <p className="mt-4 max-w-2xl text-sm leading-relaxed text-slate-400">
-            MetroNet Bangladesh Ltd delivers an end-to-end AI tracking platform — real-time object detection,
-            multi-camera monitoring, automated reporting, and intelligent alerts — deployable at any scale
-            across retail, security, corporate, and industrial environments.
+            MetroNet Bangladesh Ltd — Bangladesh's first commercial Fiber Optic Network provider,
+            operating across 63 districts with 115 Points of Presence — now delivers an end-to-end
+            AI surveillance platform with real-time object detection, multi-camera monitoring,
+            automated reporting, and intelligent alerts.
           </p>
-          <div className="mt-6 flex flex-wrap gap-3">
-            <a href="tel:+8801XXXXXXXXX" className="inline-flex items-center gap-2 rounded-xl bg-cyan-600 px-5 py-2.5 text-sm font-bold text-white shadow-lg shadow-cyan-900/30 transition hover:bg-cyan-500">
+          <div className="mt-4 flex flex-wrap gap-4 text-xs text-slate-400">
+            <span>📞 +88 09612341000 &nbsp;|&nbsp; +88 02 8814996</span>
+            <span>✉️ marketing@Metro.Net.bd</span>
+            <span>📍 Arzed Chamber (4th Floor), 13 Mohakhali C/A, Dhaka-1212</span>
+          </div>
+          <div className="mt-5 flex flex-wrap gap-3">
+            <a href="tel:+8809612341000" className="inline-flex items-center gap-2 rounded-xl bg-cyan-600 px-5 py-2.5 text-sm font-bold text-white shadow-lg shadow-cyan-900/30 transition hover:bg-cyan-500">
               <Phone className="h-4 w-4" /> Contact Sales
             </a>
-            <a href="mailto:info@metronet.com.bd" className="inline-flex items-center gap-2 rounded-xl border border-cyan-500/30 bg-cyan-500/10 px-5 py-2.5 text-sm font-bold text-cyan-300 transition hover:bg-cyan-500/20">
+            <a href="mailto:marketing@Metro.Net.bd" className="inline-flex items-center gap-2 rounded-xl border border-cyan-500/30 bg-cyan-500/10 px-5 py-2.5 text-sm font-bold text-cyan-300 transition hover:bg-cyan-500/20">
               <Mail className="h-4 w-4" /> Email Us
+            </a>
+            <a href="https://metro.net.bd/" target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-2 rounded-xl border border-slate-600 bg-slate-800/50 px-5 py-2.5 text-sm font-bold text-slate-300 transition hover:bg-slate-800">
+              <Globe className="h-4 w-4" /> metro.net.bd
             </a>
           </div>
         </div>
@@ -179,13 +188,21 @@ export default function Services() {
       {/* CTA */}
       <div className="rounded-2xl border border-cyan-500/15 bg-gradient-to-r from-[#0b1624] to-[#0a1a2e] p-8 text-center">
         <div className="text-xl font-black text-white">Ready to deploy at your facility?</div>
-        <p className="mt-2 text-sm text-slate-400">Custom installation available across Bangladesh. On-site demo on request.</p>
+        <p className="mt-2 text-sm text-slate-400">
+          Nationwide coverage across 63 districts · 115 Points of Presence · On-site demo on request.
+        </p>
+        <div className="mt-3 text-xs text-slate-500">
+          Arzed Chamber (4th Floor), 13 Mohakhali C/A, Dhaka-1212
+        </div>
         <div className="mt-5 flex flex-wrap items-center justify-center gap-3">
-          <a href="tel:+8801XXXXXXXXX" className="inline-flex items-center gap-2 rounded-xl bg-cyan-600 px-6 py-3 text-sm font-bold text-white transition hover:bg-cyan-500">
-            <Phone className="h-4 w-4" /> Call Now
+          <a href="tel:+8809612341000" className="inline-flex items-center gap-2 rounded-xl bg-cyan-600 px-6 py-3 text-sm font-bold text-white transition hover:bg-cyan-500">
+            <Phone className="h-4 w-4" /> 09612341000
           </a>
-          <a href="mailto:info@metronet.com.bd" className="inline-flex items-center gap-2 rounded-xl border border-slate-600 px-6 py-3 text-sm font-semibold text-slate-300 transition hover:bg-slate-800">
-            <Mail className="h-4 w-4" /> Send Enquiry
+          <a href="mailto:marketing@Metro.Net.bd" className="inline-flex items-center gap-2 rounded-xl border border-cyan-500/30 bg-cyan-500/10 px-6 py-3 text-sm font-semibold text-cyan-300 transition hover:bg-cyan-500/20">
+            <Mail className="h-4 w-4" /> marketing@Metro.Net.bd
+          </a>
+          <a href="https://metro.net.bd/" target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-2 rounded-xl border border-slate-600 px-6 py-3 text-sm font-semibold text-slate-300 transition hover:bg-slate-800">
+            <Globe className="h-4 w-4" /> metro.net.bd
           </a>
         </div>
       </div>
