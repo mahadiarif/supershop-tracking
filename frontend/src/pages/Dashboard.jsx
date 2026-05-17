@@ -444,22 +444,20 @@ export default function Dashboard() {
       >
         <div className="grid gap-0 xl:grid-cols-[minmax(0,1fr)_320px]">
           <div className="border-b border-cyan-500/10 xl:border-b-0 xl:border-r">
-            <div className={`flex items-center justify-center bg-[#07111b] px-3 py-3 sm:px-4 sm:py-4 ${playerMinHeightClass}`}>
+            <div className="w-full bg-[#07111b] px-2 py-2 sm:px-3 sm:py-3">
               {selectedCamera ? (
-                <div className="w-full">
-                  <LiveFeed
-                    cameraId={selectedCamera.id}
-                    zoneName={selectedCamera.name || selectedCamera.mediamtx_path || 'Main Gate'}
-                    url={feedUrl}
-                    status={selectedCamera.status}
-                    detections={selectedDetections}
-                    frameSize={selectedFrameSize}
-                    frameSrc={selectedFrameSrc}
-                  />
-                </div>
+                <LiveFeed
+                  cameraId={selectedCamera.id}
+                  zoneName={selectedCamera.name || selectedCamera.mediamtx_path || 'Main Gate'}
+                  url={feedUrl}
+                  status={selectedCamera.status}
+                  detections={selectedDetections}
+                  frameSize={selectedFrameSize}
+                  frameSrc={selectedFrameSrc}
+                />
               ) : (
-                <div className="flex flex-col items-center gap-3 py-24 text-center text-slate-500">
-                  <VideoOff className="h-14 w-14 opacity-40" />
+                <div className="flex aspect-video flex-col items-center justify-center gap-3 rounded-xl bg-slate-900/50 text-center text-slate-500">
+                  <VideoOff className="h-10 w-10 opacity-40" />
                   <div className="text-sm font-semibold uppercase tracking-[0.35em]">No Signal</div>
                   <div className="text-xs text-slate-600">Waiting for camera stream...</div>
                 </div>

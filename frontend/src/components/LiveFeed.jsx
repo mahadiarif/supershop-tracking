@@ -109,7 +109,7 @@ export default function LiveFeed({ cameraId, zoneName, url, status, detections =
   }, [detections, frameSize]);
 
   return (
-    <div ref={wrapperRef} className="group relative aspect-video overflow-hidden rounded-[1rem] border border-cyan-500/15 bg-[#09111b] shadow-[0_20px_80px_rgba(0,0,0,0.32)] sm:rounded-[1.15rem]">
+    <div ref={wrapperRef} className="group relative w-full aspect-video overflow-hidden rounded-lg border border-cyan-500/15 bg-[#09111b] shadow-[0_20px_80px_rgba(0,0,0,0.32)]">
       {displaySrc ? (
         <img
           id="liveFrame"
