@@ -91,10 +91,10 @@ export default function Reports() {
                     <p className="text-sm text-slate-500">Daily, weekly, monthly, and incident insights</p>
                 </div>
                 <div className="flex gap-2">
-                    <button onClick={downloadReport} className="inline-flex items-center rounded-lg bg-blue-600 px-4 py-2 text-white hover:bg-blue-700">
+                    <button onClick={downloadReport} className="inline-flex items-center rounded-lg bg-cyan-600 px-4 py-2 text-white hover:bg-cyan-500 transition">
                         <Download className="mr-2 h-4 w-4" /> Download
                     </button>
-                    <button onClick={sendEmail} className="inline-flex items-center rounded-lg border border-slate-700 px-4 py-2 text-slate-300 hover:bg-[#09111b]">
+                    <button onClick={sendEmail} className="inline-flex items-center rounded-lg border border-slate-700 px-4 py-2 text-slate-300 hover:bg-[#09111b] transition">
                         <Mail className="mr-2 h-4 w-4" /> Email
                     </button>
                 </div>
@@ -105,7 +105,7 @@ export default function Reports() {
                     <button
                         key={item}
                         onClick={() => setTab(item)}
-                        className={`px-4 py-2 font-semibold capitalize ${tab === item ? 'border-b-2 border-blue-600 text-blue-600' : 'text-slate-500'}`}
+                        className={`px-4 py-2 font-semibold capitalize ${tab === item ? 'border-b-2 border-cyan-500 text-cyan-400' : 'text-slate-500 hover:text-slate-300'}`}
                     >
                         {item}
                     </button>
@@ -122,9 +122,9 @@ export default function Reports() {
                                 <div className="flex flex-wrap gap-3">
                                     <label className="text-sm text-slate-400">
                                         <span className="mb-1 block font-semibold">Date</span>
-                                        <input type="date" value={dailyDate} onChange={(e) => setDailyDate(e.target.value)} className="rounded-lg border border-slate-700 px-3 py-2" />
+                                        <input type="date" value={dailyDate} onChange={(e) => { setDailyDate(e.target.value); }} className="rounded-lg border border-slate-700 bg-[#09111b] px-3 py-2 text-slate-100" />
                                     </label>
-                                    <button onClick={loadReport} className="mt-6 rounded-lg bg-gray-900 px-4 py-2 text-white">Load</button>
+                                    <button onClick={loadReport} className="mt-6 rounded-lg border border-cyan-500/30 bg-cyan-500/10 px-4 py-2 text-sm font-semibold text-cyan-300 hover:bg-cyan-500/20 transition">Load</button>
                                 </div>
                                 <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                                     <MetricCard label="Customers" value={dailySummary.total_customers || 0} icon={<TrendingUp className="h-4 w-4" />} />
@@ -135,11 +135,11 @@ export default function Reports() {
                                 <div className="h-80">
                                     <ResponsiveContainer width="100%" height="100%">
                                         <BarChart data={report?.hourly_breakdown || []}>
-                                            <CartesianGrid strokeDasharray="3 3" />
-                                            <XAxis dataKey="hour" />
-                                            <YAxis />
-                                            <Tooltip />
-                                            <Bar dataKey="count" fill="#2563eb" />
+                                            <CartesianGrid strokeDasharray="3 3" stroke="#1e3048" />
+                                            <XAxis dataKey="hour" stroke="#64748b" tick={{ fill: '#94a3b8' }} />
+                                            <YAxis stroke="#64748b" tick={{ fill: '#94a3b8' }} />
+                                            <Tooltip contentStyle={{ backgroundColor: '#0b1624', border: '1px solid rgba(6,182,212,0.2)', borderRadius: 8, color: '#e2e8f0' }} />
+                                            <Bar dataKey="count" fill="#06b6d4" radius={[4, 4, 0, 0]} />
                                         </BarChart>
                                     </ResponsiveContainer>
                                 </div>
@@ -151,18 +151,18 @@ export default function Reports() {
                                 <div className="flex flex-wrap gap-3">
                                     <label className="text-sm text-slate-400">
                                         <span className="mb-1 block font-semibold">Week start</span>
-                                        <input type="date" value={weekStart} onChange={(e) => setWeekStart(e.target.value)} className="rounded-lg border border-slate-700 px-3 py-2" />
+                                        <input type="date" value={weekStart} onChange={(e) => setWeekStart(e.target.value)} className="rounded-lg border border-slate-700 bg-[#09111b] px-3 py-2 text-slate-100" />
                                     </label>
-                                    <button onClick={loadReport} className="mt-6 rounded-lg bg-gray-900 px-4 py-2 text-white">Load</button>
+                                    <button onClick={loadReport} className="mt-6 rounded-lg border border-cyan-500/30 bg-cyan-500/10 px-4 py-2 text-sm font-semibold text-cyan-300 hover:bg-cyan-500/20 transition">Load</button>
                                 </div>
                                 <div className="h-80">
                                     <ResponsiveContainer width="100%" height="100%">
                                         <LineChart data={report?.daily_breakdown || []}>
-                                            <CartesianGrid strokeDasharray="3 3" />
-                                            <XAxis dataKey="date" />
-                                            <YAxis />
-                                            <Tooltip />
-                                            <Line type="monotone" dataKey="value" stroke="#16a34a" strokeWidth={3} />
+                                            <CartesianGrid strokeDasharray="3 3" stroke="#1e3048" />
+                                            <XAxis dataKey="date" stroke="#64748b" tick={{ fill: '#94a3b8' }} />
+                                            <YAxis stroke="#64748b" tick={{ fill: '#94a3b8' }} />
+                                            <Tooltip contentStyle={{ backgroundColor: '#0b1624', border: '1px solid rgba(6,182,212,0.2)', borderRadius: 8, color: '#e2e8f0' }} />
+                                            <Line type="monotone" dataKey="value" stroke="#22d3ee" strokeWidth={3} dot={{ fill: '#22d3ee', r: 4 }} />
                                         </LineChart>
                                     </ResponsiveContainer>
                                 </div>
@@ -174,19 +174,19 @@ export default function Reports() {
                                 <div className="flex flex-wrap gap-3">
                                     <label className="text-sm text-slate-400">
                                         <span className="mb-1 block font-semibold">Month</span>
-                                        <input type="month" value={month} onChange={(e) => setMonth(e.target.value)} className="rounded-lg border border-slate-700 px-3 py-2" />
+                                        <input type="month" value={month} onChange={(e) => setMonth(e.target.value)} className="rounded-lg border border-slate-700 bg-[#09111b] px-3 py-2 text-slate-100" />
                                     </label>
-                                    <button onClick={loadReport} className="mt-6 rounded-lg bg-gray-900 px-4 py-2 text-white">Load</button>
+                                    <button onClick={loadReport} className="mt-6 rounded-lg border border-cyan-500/30 bg-cyan-500/10 px-4 py-2 text-sm font-semibold text-cyan-300 hover:bg-cyan-500/20 transition">Load</button>
                                 </div>
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                     <div className="h-80">
                                         <ResponsiveContainer width="100%" height="100%">
                                             <LineChart data={report?.daily_breakdown || []}>
-                                                <CartesianGrid strokeDasharray="3 3" />
-                                                <XAxis dataKey="date" />
-                                                <YAxis />
-                                                <Tooltip />
-                                                <Line type="monotone" dataKey="value" stroke="#7c3aed" strokeWidth={3} />
+                                                <CartesianGrid strokeDasharray="3 3" stroke="#1e3048" />
+                                                <XAxis dataKey="date" stroke="#64748b" tick={{ fill: '#94a3b8' }} />
+                                                <YAxis stroke="#64748b" tick={{ fill: '#94a3b8' }} />
+                                                <Tooltip contentStyle={{ backgroundColor: '#0b1624', border: '1px solid rgba(6,182,212,0.2)', borderRadius: 8, color: '#e2e8f0' }} />
+                                                <Line type="monotone" dataKey="value" stroke="#a78bfa" strokeWidth={3} dot={{ fill: '#a78bfa', r: 4 }} />
                                             </LineChart>
                                         </ResponsiveContainer>
                                     </div>
@@ -198,8 +198,8 @@ export default function Reports() {
                                                         <Cell key={entry[0]} fill={colors[index % colors.length]} />
                                                     ))}
                                                 </Pie>
-                                                <Tooltip />
-                                                <Legend />
+                                                <Tooltip contentStyle={{ backgroundColor: '#0b1624', border: '1px solid rgba(6,182,212,0.2)', borderRadius: 8, color: '#e2e8f0' }} />
+                                                <Legend wrapperStyle={{ color: '#94a3b8' }} />
                                             </PieChart>
                                         </ResponsiveContainer>
                                     </div>
@@ -212,13 +212,13 @@ export default function Reports() {
                                 <div className="flex flex-wrap gap-3">
                                     <label className="text-sm text-slate-400">
                                         <span className="mb-1 block font-semibold">Start</span>
-                                        <input type="date" value={incidentRange.start} onChange={(e) => setIncidentRange((prev) => ({ ...prev, start: e.target.value }))} className="rounded-lg border border-slate-700 px-3 py-2" />
+                                        <input type="date" value={incidentRange.start} onChange={(e) => setIncidentRange((prev) => ({ ...prev, start: e.target.value }))} className="rounded-lg border border-slate-700 bg-[#09111b] px-3 py-2 text-slate-100" />
                                     </label>
                                     <label className="text-sm text-slate-400">
                                         <span className="mb-1 block font-semibold">End</span>
-                                        <input type="date" value={incidentRange.end} onChange={(e) => setIncidentRange((prev) => ({ ...prev, end: e.target.value }))} className="rounded-lg border border-slate-700 px-3 py-2" />
+                                        <input type="date" value={incidentRange.end} onChange={(e) => setIncidentRange((prev) => ({ ...prev, end: e.target.value }))} className="rounded-lg border border-slate-700 bg-[#09111b] px-3 py-2 text-slate-100" />
                                     </label>
-                                    <button onClick={loadReport} className="mt-6 rounded-lg bg-gray-900 px-4 py-2 text-white">Load</button>
+                                    <button onClick={loadReport} className="mt-6 rounded-lg border border-cyan-500/30 bg-cyan-500/10 px-4 py-2 text-sm font-semibold text-cyan-300 hover:bg-cyan-500/20 transition">Load</button>
                                 </div>
                                 <div className="overflow-x-auto rounded-xl border border-slate-700">
                                     <table className="min-w-full text-left text-sm">
