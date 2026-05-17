@@ -40,8 +40,37 @@ def _camera_id_filter(camera_id: str):
         raise HTTPException(status_code=400, detail="Invalid camera ID")
 
 
+async def _mediamtx_add_path(path_name: str, rtsp_url: str) -> bool:
+    if not rtsp_url:
+        return False
+    try:
+        async with httpx.AsyncClient() as client:
+            r = await client.post(
+                f"{_mediamtx_api_base_url()}/v3/config/paths/add/{path_name}",
+                json={"source": rtsp_url, "sourceOnDemand": False},
+                timeout=httpx.Timeout(3.0),
+            )
+            return r.status_code in (200, 201)
+    except Exception as exc:
+        print(f"MediaMTX add path failed: {exc}")
+        return False
+
+
+async def _mediamtx_remove_path(path_name: str) -> bool:
+    try:
+        async with httpx.AsyncClient() as client:
+            r = await client.delete(
+                f"{_mediamtx_api_base_url()}/v3/config/paths/delete/{path_name}",
+                timeout=httpx.Timeout(3.0),
+            )
+            return r.status_code in (200, 204)
+    except Exception as exc:
+        print(f"MediaMTX remove path failed: {exc}")
+        return False
+
+
 async def sync_camera_statuses(db: AsyncSession) -> int:
-    """MediaMTX state অনুযায়ী DB camera status refresh করে."""
+    """MediaMTX state অনুযায়ী DB camera status refresh করে।"""
     paths = await _fetch_mediamtx_paths()
     result = await db.execute(select(Camera))
     cameras = result.scalars().all()
@@ -80,6 +109,8 @@ async def create_camera(camera: CameraCreate, db: AsyncSession = Depends(get_db)
     db.add(new_camera)
     await db.commit()
     await db.refresh(new_camera)
+    if new_camera.mediamtx_path and new_camera.rtsp_url:
+        await _mediamtx_add_path(new_camera.mediamtx_path, new_camera.rtsp_url)
     return new_camera
 
 
@@ -107,6 +138,8 @@ async def update_camera(camera_id: str, camera_update: CameraUpdate, db: AsyncSe
 
     await db.commit()
     await db.refresh(camera)
+    if camera.mediamtx_path and camera.rtsp_url:
+        await _mediamtx_add_path(camera.mediamtx_path, camera.rtsp_url)
     return camera
 
 
@@ -117,6 +150,9 @@ async def delete_camera(camera_id: str, db: AsyncSession = Depends(get_db)):
     if not camera:
         raise HTTPException(status_code=404, detail="Camera not found")
 
+    path_name = camera.mediamtx_path
     await db.delete(camera)
     await db.commit()
+    if path_name:
+        await _mediamtx_remove_path(path_name)
     return {"message": "Camera deleted successfully"}
