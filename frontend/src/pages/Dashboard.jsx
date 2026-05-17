@@ -397,12 +397,13 @@ export default function Dashboard() {
     return 'idle';
   }, [workerLastBeat, workerStatus]);
   const zoneEntries = Object.entries(liveStats.zone_counts || {});
-  const playerMinHeightClass = 'min-h-[300px] sm:min-h-[360px] lg:min-h-[440px] xl:min-h-[560px]';
+  const playerMinHeightClass = 'min-h-[220px] sm:min-h-[300px] lg:min-h-[400px] xl:min-h-[500px]';
   const snapshotStrip = selectedDetections.slice(0, 5);
+  const [mobileTab, setMobileTab] = React.useState('objects');
 
   return (
     <div className="space-y-4 text-slate-100">
-      <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
         <MetricCard value={stats.total_customers_today} label="Visits Today" icon={Users} tone="cyan" />
         <MetricCard value={stats.unique_persons_today} label="Unique Persons" icon={Users} tone="green" />
         <MetricCard value={stats.total_alerts} label="Active Alerts" icon={Shield} tone="amber" />
@@ -413,7 +414,7 @@ export default function Dashboard() {
         title="Monitoring"
         icon={VideoOff}
         right={
-          <>
+          <div className="flex flex-wrap items-center gap-2">
             <span
               id="yolo-status-badge"
               className={`rounded-md border px-2 py-1 text-[10px] font-black uppercase tracking-[0.24em] ${
@@ -429,7 +430,7 @@ export default function Dashboard() {
             <select
               value={selectedCameraId}
               onChange={(event) => setSelectedCameraId(event.target.value)}
-              className="min-w-[150px] rounded-md border border-cyan-500/20 bg-[#0a1320] px-3 py-1.5 text-xs text-slate-200 outline-none"
+              className="w-full max-w-[200px] rounded-md border border-cyan-500/20 bg-[#0a1320] px-3 py-1.5 text-xs text-slate-200 outline-none sm:w-auto"
             >
               {enabledCameras.map((camera) => (
                 <option key={camera.id} value={camera.id}>
@@ -437,7 +438,7 @@ export default function Dashboard() {
                 </option>
               ))}
             </select>
-          </>
+          </div>
         }
         className="overflow-hidden"
       >
@@ -476,7 +477,7 @@ export default function Dashboard() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-3 gap-2 p-3 sm:grid-cols-6 lg:grid-cols-8">
+              <div className="grid grid-cols-4 gap-2 p-3 sm:grid-cols-6 lg:grid-cols-8 xl:grid-cols-6">
                 {persistentGallery.length === 0 ? (
                   <div className="col-span-full rounded-lg border border-dashed border-slate-700 px-4 py-6 text-center text-sm text-slate-500">
                     No persistent snapshots yet. Waiting for detections...
@@ -513,23 +514,44 @@ export default function Dashboard() {
           </div>
 
           <div className="flex flex-col bg-[#0d1522]">
-            <div className="border-b border-cyan-500/10 px-4 py-4">
-              <div className="text-[10px] font-black uppercase tracking-[0.22em] text-slate-500">Camera</div>
-              <div className="mt-1 text-base font-semibold text-slate-100">{selectedCameraLabel}</div>
-              <div className="mt-3 grid grid-cols-2 gap-3">
-                <div>
-                  <div className="text-[10px] uppercase tracking-[0.18em] text-slate-500">Objects</div>
-                  <div className="mt-1 text-2xl font-black text-cyan-300">{objectCountTotal}</div>
+            {/* Camera info + quick stats — always visible */}
+            <div className="border-b border-cyan-500/10 px-4 py-3">
+              <div className="flex items-center justify-between gap-2">
+                <div className="min-w-0">
+                  <div className="text-[10px] font-black uppercase tracking-[0.22em] text-slate-500">Camera</div>
+                  <div className="mt-0.5 truncate text-sm font-semibold text-slate-100">{selectedCameraLabel}</div>
                 </div>
-                <div>
-                  <div className="text-[10px] uppercase tracking-[0.18em] text-slate-500">Tracks</div>
-                  <div className="mt-1 text-2xl font-black text-slate-100">{uniqueTrackCount}</div>
+                <div className="flex shrink-0 gap-4">
+                  <div className="text-center">
+                    <div className="text-[10px] uppercase tracking-[0.18em] text-slate-500">Objects</div>
+                    <div className="text-xl font-black text-cyan-300">{objectCountTotal}</div>
+                  </div>
+                  <div className="text-center">
+                    <div className="text-[10px] uppercase tracking-[0.18em] text-slate-500">Tracks</div>
+                    <div className="text-xl font-black text-slate-100">{uniqueTrackCount}</div>
+                  </div>
                 </div>
               </div>
             </div>
 
-            <div className="border-b border-cyan-500/10 px-4 py-4">
-              <div className="mb-3 text-[10px] font-black uppercase tracking-[0.22em] text-slate-500">Object Count</div>
+            {/* Mobile tabs */}
+            <div className="flex border-b border-cyan-500/10 xl:hidden">
+              {['objects', 'activity'].map((tab) => (
+                <button
+                  key={tab}
+                  onClick={() => setMobileTab(tab)}
+                  className={`flex-1 py-2 text-[11px] font-black uppercase tracking-widest transition ${
+                    mobileTab === tab ? 'border-b-2 border-cyan-500 text-cyan-300' : 'text-slate-500'
+                  }`}
+                >
+                  {tab === 'objects' ? 'Object Count' : 'Activity'}
+                </button>
+              ))}
+            </div>
+
+            {/* Object Count */}
+            <div className={`border-b border-cyan-500/10 px-4 py-4 ${mobileTab !== 'objects' ? 'hidden xl:block' : ''}`}>
+              <div className="mb-3 hidden text-[10px] font-black uppercase tracking-[0.22em] text-slate-500 xl:block">Object Count</div>
               {Object.keys(classBreakdown).length === 0 ? (
                 <div className="text-sm text-slate-500">Waiting for detections...</div>
               ) : (
@@ -552,7 +574,8 @@ export default function Dashboard() {
               )}
             </div>
 
-            <div className="flex-1 px-4 py-4">
+            {/* Activity */}
+            <div className={`flex-1 px-4 py-4 ${mobileTab !== 'activity' ? 'hidden xl:block' : ''}`}>
               <div className="mb-3 flex items-center justify-between">
                 <div className="text-[10px] font-black uppercase tracking-[0.22em] text-slate-500">Activity</div>
                 <span className="text-[10px] uppercase tracking-[0.18em] text-slate-500">Latest 8</span>
