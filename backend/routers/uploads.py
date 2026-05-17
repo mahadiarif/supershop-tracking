@@ -7,10 +7,12 @@ import tempfile
 from concurrent.futures import ThreadPoolExecutor
 
 import cv2
-from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
+from fastapi import APIRouter, BackgroundTasks, Depends, File, Form, HTTPException, UploadFile
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from backend.database import get_db
+from backend.database import AsyncSessionLocal, get_db
+from backend.models.camera import Camera, CameraStatus
 from backend.routers.events import DetectionPayload, process_detection
 from backend.vps_inference.inference_service import run_inference
 
@@ -20,21 +22,54 @@ _executor = ThreadPoolExecutor(max_workers=1)
 
 ALLOWED_EXTENSIONS = {".mp4", ".avi", ".mov", ".mkv", ".webm"}
 MAX_FILE_SIZE = 500 * 1024 * 1024  # 500 MB
-PROCESS_EVERY_NTH_FRAME = int(os.getenv("UPLOAD_FRAME_SKIP", "10"))
+UPLOAD_FRAME_SKIP = int(os.getenv("UPLOAD_FRAME_SKIP", "5"))
+STREAM_FPS = float(os.getenv("UPLOAD_STREAM_FPS", "8"))  # display rate on dashboard
+
+DEMO_CAMERA_NAME = "Demo Camera"
+DEMO_CAMERA_PATH = "demo_feed"
 
 
-def _process_video_sync(video_path: str, camera_id: str) -> dict:
+async def _get_or_create_demo_camera(db: AsyncSession) -> Camera:
+    result = await db.execute(select(Camera).where(Camera.mediamtx_path == DEMO_CAMERA_PATH))
+    camera = result.scalar_one_or_none()
+    if camera is None:
+        camera = Camera(
+            name=DEMO_CAMERA_NAME,
+            mediamtx_path=DEMO_CAMERA_PATH,
+            rtsp_url="",
+            status=CameraStatus.online,
+            web_enabled=True,
+        )
+        db.add(camera)
+        await db.commit()
+        await db.refresh(camera)
+    elif not camera.web_enabled:
+        camera.web_enabled = True
+        camera.status = CameraStatus.online
+        await db.commit()
+    return camera
+
+
+def _extract_frame_b64(frame) -> str:
+    _, buf = cv2.imencode(".jpg", frame, [cv2.IMWRITE_JPEG_QUALITY, 70])
+    return base64.b64encode(buf.tobytes()).decode()
+
+
+async def _stream_video_to_dashboard(video_path: str, camera_id: str) -> dict:
     cap = cv2.VideoCapture(video_path)
     if not cap.isOpened():
-        raise ValueError("Cannot open video file")
+        return {"error": "Cannot open video"}
 
     total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
-    fps = cap.get(cv2.CAP_PROP_FPS) or 25
     width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
     height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+    frame_delay = 1.0 / STREAM_FPS
 
-    results = []
     frame_idx = 0
+    processed = 0
+    saved = 0
+
+    loop = asyncio.get_event_loop()
 
     try:
         while True:
@@ -42,33 +77,44 @@ def _process_video_sync(video_path: str, camera_id: str) -> dict:
             if not ret:
                 break
 
-            if frame_idx % PROCESS_EVERY_NTH_FRAME == 0:
-                _, buf = cv2.imencode(".jpg", frame, [cv2.IMWRITE_JPEG_QUALITY, 70])
-                frame_b64 = base64.b64encode(buf.tobytes()).decode()
-                result = run_inference(camera_id, frame_b64, width, height)
-                results.append(result)
+            if frame_idx % UPLOAD_FRAME_SKIP == 0:
+                frame_b64 = await loop.run_in_executor(_executor, _extract_frame_b64, frame)
+
+                result = await loop.run_in_executor(
+                    _executor, run_inference, camera_id, frame_b64, width, height
+                )
+
+                async with AsyncSessionLocal() as db:
+                    try:
+                        payload = DetectionPayload(**result)
+                        await process_detection(payload, db)
+                        saved += 1
+                    except Exception as exc:
+                        print(f"Stream save error: {exc}")
+
+                processed += 1
+                await asyncio.sleep(frame_delay)
 
             frame_idx += 1
     finally:
         cap.release()
-
-    total_detections = sum(len(r.get("detections", [])) for r in results)
-    total_persons = sum(r.get("total_persons", 0) for r in results)
+        try:
+            os.unlink(video_path)
+        except OSError:
+            pass
 
     return {
         "frames_total": total_frames,
-        "frames_processed": len(results),
-        "fps": fps,
+        "frames_processed": processed,
+        "frames_saved": saved,
         "resolution": f"{width}x{height}",
-        "total_detections": total_detections,
-        "total_persons": total_persons,
-        "frame_results": results,
     }
 
 
 @router.post("/upload-video")
 async def upload_video(
-    camera_id: str = Form(...),
+    background_tasks: BackgroundTasks,
+    camera_id: str = Form(default="demo"),
     file: UploadFile = File(...),
     db: AsyncSession = Depends(get_db),
 ):
@@ -80,42 +126,23 @@ async def upload_video(
     if len(contents) > MAX_FILE_SIZE:
         raise HTTPException(status_code=413, detail="File too large. Max 500 MB.")
 
-    with tempfile.NamedTemporaryFile(suffix=ext, delete=False) as tmp:
-        tmp.write(contents)
-        tmp_path = tmp.name
+    # Resolve camera: "demo" → auto-create Demo Camera
+    if camera_id == "demo":
+        camera = await _get_or_create_demo_camera(db)
+        resolved_camera_id = str(camera.id)
+    else:
+        resolved_camera_id = camera_id
 
-    try:
-        loop = asyncio.get_event_loop()
-        video_result = await loop.run_in_executor(
-            _executor, _process_video_sync, tmp_path, camera_id
-        )
+    # Save to temp file (background task will delete it)
+    tmp = tempfile.NamedTemporaryFile(suffix=ext, delete=False)
+    tmp.write(contents)
+    tmp.close()
 
-        saved = 0
-        for frame_result in video_result["frame_results"]:
-            if frame_result.get("detections"):
-                try:
-                    payload = DetectionPayload(**frame_result)
-                    await process_detection(payload, db)
-                    saved += 1
-                except Exception as exc:
-                    print(f"Failed to save frame detections: {exc}")
+    background_tasks.add_task(_stream_video_to_dashboard, tmp.name, resolved_camera_id)
 
-        return {
-            "ok": True,
-            "filename": file.filename,
-            "camera_id": camera_id,
-            "frames_total": video_result["frames_total"],
-            "frames_processed": video_result["frames_processed"],
-            "frames_saved": saved,
-            "fps": video_result["fps"],
-            "resolution": video_result["resolution"],
-            "total_detections": video_result["total_detections"],
-            "total_persons": video_result["total_persons"],
-        }
-    except ValueError as exc:
-        raise HTTPException(status_code=422, detail=str(exc))
-    finally:
-        try:
-            os.unlink(tmp_path)
-        except OSError:
-            pass
+    return {
+        "ok": True,
+        "filename": file.filename,
+        "camera_id": resolved_camera_id,
+        "message": "Processing started. Watch the Dashboard for live detections.",
+    }
