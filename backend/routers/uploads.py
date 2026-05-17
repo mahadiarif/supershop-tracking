@@ -24,12 +24,24 @@ ALLOWED_EXTENSIONS = {".mp4", ".avi", ".mov", ".mkv", ".webm"}
 MAX_FILE_SIZE = 500 * 1024 * 1024  # 500 MB
 UPLOAD_FRAME_SKIP = int(os.getenv("UPLOAD_FRAME_SKIP", "5"))
 STREAM_FPS = float(os.getenv("UPLOAD_STREAM_FPS", "8"))
+UPLOAD_DIR = os.getenv("UPLOAD_DIR", "/app/uploads")
 
 DEMO_CAMERA_NAME = "Demo Camera"
 DEMO_CAMERA_PATH = "demo_feed"
+DEMO_VIDEO_FILE = os.path.join(UPLOAD_DIR, "demo_video")  # no ext, find by glob
 
 # camera_id → asyncio.Task
 _active_streams: dict[str, asyncio.Task] = {}
+
+
+def _find_saved_demo() -> str | None:
+    """Return path of saved demo video if exists."""
+    os.makedirs(UPLOAD_DIR, exist_ok=True)
+    for ext in ALLOWED_EXTENSIONS:
+        p = DEMO_VIDEO_FILE + ext
+        if os.path.exists(p):
+            return p
+    return None
 
 
 async def _get_or_create_demo_camera(db: AsyncSession) -> Camera:
@@ -58,7 +70,7 @@ def _extract_frame_b64(frame) -> str:
     return base64.b64encode(buf.tobytes()).decode()
 
 
-async def _stream_loop(video_path: str, camera_id: str):
+async def _stream_loop(video_path: str, camera_id: str, persistent: bool = False):
     cap = cv2.VideoCapture(video_path)
     if not cap.isOpened():
         print(f"[upload] Cannot open video: {video_path}")
@@ -104,10 +116,24 @@ async def _stream_loop(video_path: str, camera_id: str):
     finally:
         cap.release()
         _active_streams.pop(camera_id, None)
-        try:
-            os.unlink(video_path)
-        except OSError:
-            pass
+        if not persistent:
+            try:
+                os.unlink(video_path)
+            except OSError:
+                pass
+
+
+async def auto_resume_demo():
+    """Called on startup — resume demo video stream if saved file exists."""
+    saved = _find_saved_demo()
+    if not saved:
+        return
+    async with AsyncSessionLocal() as db:
+        camera = await _get_or_create_demo_camera(db)
+        camera_id = str(camera.id)
+    task = asyncio.create_task(_stream_loop(saved, camera_id, persistent=True))
+    _active_streams[camera_id] = task
+    print(f"[upload] Auto-resumed demo video: {saved}")
 
 
 @router.post("/upload-video")
@@ -136,11 +162,25 @@ async def upload_video(
         existing.cancel()
         await asyncio.sleep(0.1)
 
-    tmp = tempfile.NamedTemporaryFile(suffix=ext, delete=False)
-    tmp.write(contents)
-    tmp.close()
+    # Save persistently for demo camera, temp for others
+    is_demo = camera_id == "demo"
+    if is_demo:
+        os.makedirs(UPLOAD_DIR, exist_ok=True)
+        # Remove old demo video if different extension
+        for old_ext in ALLOWED_EXTENSIONS:
+            old = DEMO_VIDEO_FILE + old_ext
+            if os.path.exists(old):
+                os.unlink(old)
+        save_path = DEMO_VIDEO_FILE + ext
+        with open(save_path, "wb") as f:
+            f.write(contents)
+    else:
+        tmp = tempfile.NamedTemporaryFile(suffix=ext, delete=False)
+        tmp.write(contents)
+        tmp.close()
+        save_path = tmp.name
 
-    task = asyncio.create_task(_stream_loop(tmp.name, resolved_camera_id))
+    task = asyncio.create_task(_stream_loop(save_path, resolved_camera_id, persistent=is_demo))
     _active_streams[resolved_camera_id] = task
 
     return {

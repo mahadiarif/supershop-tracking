@@ -62,11 +62,13 @@ services:
       MEDIAMTX_API_URL: http://mediamtx:9997
       FRONTEND_URL: ${FRONTEND_URL:-http://localhost:5173}
       SNAPSHOT_DIR: /app/snapshots
+      UPLOAD_DIR: /app/uploads
     ports:
       - "8001:8001"
     volumes:
       - ./snapshots:/app/snapshots
       - ./service_logs:/app/service_logs
+      - ./uploads:/app/uploads
     depends_on:
       postgres:
         condition: service_healthy

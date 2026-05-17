@@ -69,6 +69,9 @@ async def lifespan(app: FastAPI):
     async with AsyncSessionLocal() as db:
         await camera_tracker.auto_start_all(db)
 
+    # Resume demo video stream if previously uploaded
+    await uploads.auto_resume_demo()
+
     yield
     # Shutdown
     scheduler.shutdown()
