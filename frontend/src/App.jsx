@@ -69,8 +69,8 @@ function AppShell() {
               <Video className="h-5 w-5" />
             </div>
             <div>
-              <div className="text-lg font-black tracking-[0.25em] text-cyan-100">METRONET</div>
-              <div className="text-[10px] font-semibold uppercase tracking-[0.45em] text-cyan-400/70">AI Surveillance</div>
+              <div className="text-lg font-black tracking-[0.25em] text-cyan-100">MetroNet</div>
+              <div className="text-[10px] font-semibold uppercase tracking-[0.45em] text-cyan-400/70">Bangladesh Ltd</div>
             </div>
           </div>
 
