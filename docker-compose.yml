@@ -63,6 +63,9 @@ services:
       FRONTEND_URL: ${FRONTEND_URL:-http://localhost:5173}
       SNAPSHOT_DIR: /app/snapshots
       UPLOAD_DIR: /app/uploads
+      YOLO_MODEL: /app/backend/yolo26n.pt
+      INFERENCE_IMG_SIZE: "320"
+      TORCH_NUM_THREADS: "8"
     ports:
       - "8001:8001"
     volumes:

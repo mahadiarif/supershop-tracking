@@ -22,7 +22,7 @@ from backend.vps_inference.inference_service import run_inference
 
 router = APIRouter()
 
-_executor = ThreadPoolExecutor(max_workers=2)
+_executor = ThreadPoolExecutor(max_workers=4)
 
 FRAME_SKIP = int(os.getenv("TRACKER_FRAME_SKIP", "5"))
 STREAM_FPS = float(os.getenv("TRACKER_STREAM_FPS", "8"))
@@ -32,12 +32,8 @@ MEDIAMTX_RTSP = os.getenv("MEDIAMTX_RTSP_URL", "rtsp://mediamtx:8554")
 _running: dict[str, asyncio.Task] = {}
 
 
-def _pull_and_infer(rtsp_url: str, camera_id: str, width: int, height: int) -> dict | None:
-    cap = cv2.VideoCapture(rtsp_url)
-    if not cap.isOpened():
-        return None
+def _read_and_infer(cap: cv2.VideoCapture, camera_id: str, width: int, height: int) -> dict | None:
     ret, frame = cap.read()
-    cap.release()
     if not ret or frame is None:
         return None
     _, buf = cv2.imencode(".jpg", frame, [cv2.IMWRITE_JPEG_QUALITY, 70])
@@ -45,41 +41,63 @@ def _pull_and_infer(rtsp_url: str, camera_id: str, width: int, height: int) -> d
     return run_inference(camera_id, frame_b64, width, height)
 
 
+def _open_cap(rtsp_url: str) -> cv2.VideoCapture:
+    cap = cv2.VideoCapture(rtsp_url)
+    cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
+    return cap
+
+
 async def _track_loop(camera_id: str, mediamtx_path: str):
     rtsp_url = f"{MEDIAMTX_RTSP}/{mediamtx_path}"
     frame_delay = 1.0 / STREAM_FPS
     loop = asyncio.get_running_loop()
     frame_idx = 0
+    reconnect_delay = 2.0
 
-    # Probe resolution once
-    cap = cv2.VideoCapture(rtsp_url)
+    cap = await loop.run_in_executor(_executor, _open_cap, rtsp_url)
     width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH)) or 640
     height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT)) or 480
-    cap.release()
 
     print(f"[tracker] Started — camera={camera_id} path={mediamtx_path} {width}x{height}")
 
     try:
         while True:
+            if not cap.isOpened():
+                print(f"[tracker] Reconnecting — camera={camera_id}")
+                cap.release()
+                await asyncio.sleep(reconnect_delay)
+                cap = await loop.run_in_executor(_executor, _open_cap, rtsp_url)
+                frame_idx = 0
+                continue
+
             if frame_idx % FRAME_SKIP == 0:
                 try:
                     result = await loop.run_in_executor(
-                        _executor, _pull_and_infer, rtsp_url, camera_id, width, height
+                        _executor, _read_and_infer, cap, camera_id, width, height
                     )
-                    if result:
-                        async with AsyncSessionLocal() as db:
-                            payload = DetectionPayload(**result)
-                            await process_detection(payload, db)
+                    if result is None:
+                        # stream ended or frame read failed — reconnect
+                        print(f"[tracker] Frame read failed, reconnecting — camera={camera_id}")
+                        cap.release()
+                        await asyncio.sleep(reconnect_delay)
+                        cap = await loop.run_in_executor(_executor, _open_cap, rtsp_url)
+                        frame_idx = 0
+                        continue
+                    async with AsyncSessionLocal() as db:
+                        payload = DetectionPayload(**result)
+                        await process_detection(payload, db)
                 except asyncio.CancelledError:
                     raise
                 except Exception as exc:
                     print(f"[tracker] Frame error: {type(exc).__name__}: {exc}")
 
                 await asyncio.sleep(frame_delay)
+
             frame_idx += 1
     except asyncio.CancelledError:
         print(f"[tracker] Stopped — camera={camera_id}")
     finally:
+        cap.release()
         _running.pop(camera_id, None)
 
 

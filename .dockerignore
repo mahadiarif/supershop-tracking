@@ -20,3 +20,10 @@ build
 
 mediamtx_bin
 *.log
+
+uploads
+models
+*.pt
+*.onnx
+.env
+.env.*

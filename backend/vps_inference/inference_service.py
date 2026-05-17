@@ -13,16 +13,16 @@ try:
 except Exception:
     pass
 
-cv2.setNumThreads(2)
+cv2.setNumThreads(4)
 
 _model = None
 _model_lock = threading.Lock()
 _tracker_state = {}  # persist tracking across frames per camera
 
-YOLO_MODEL = os.getenv('YOLO_MODEL', 'yolov8n.pt')
+YOLO_MODEL = os.getenv('YOLO_MODEL', 'yolo26n.pt')
 YOLO_TRACKER = os.getenv('YOLO_TRACKER', 'bytetrack.yaml')
 CONFIDENCE = float(os.getenv('CONFIDENCE', '0.35'))
-INFERENCE_IMG_SIZE = int(os.getenv('INFERENCE_IMG_SIZE', '256'))
+INFERENCE_IMG_SIZE = int(os.getenv('INFERENCE_IMG_SIZE', '320'))
 YOLO_DEVICE = os.getenv('YOLO_DEVICE', 'cpu')
 USE_ONNX = os.getenv('USE_ONNX', '0') == '1'
 
